@@ -24,7 +24,7 @@ def processOptions(options):
 def enableServer(config,bench):
     server_program=config.get(bench,'SERVER_PROGRAM')
     server_input=config.get(bench,'SERVER_INPUT')
-    
+
 
 
 
@@ -37,8 +37,8 @@ def processBench(config, bench):
     server_count=config.getint(bench,'SERVER_COUNT')
     server_program=config.get(bench,'SERVER_PROGRAM')
     #if len(server_program)!=0:
-    
-        
+
+
     server_input=config.get(bench,'SERVER_INPUT')
     server_kill=config.get(bench,'SERVER_KILL')
     client_program=config.get(bench,'CLIENT_PROGRAM')
@@ -47,17 +47,24 @@ def processBench(config, bench):
     testname = bench
     testscript = open(testname,"w")
     testscript.write('#! /bin/bash\n')
-    testscript.write(server_program + ' ' + server_input +' \n'+
-    'ssh ' + remote_hostone + '  "' + server_program + ' ' + server_input + '" &\n' +
-    'ssh ' + remote_hosttwo + '  "' + server_program + ' ' + server_input + '" &\n' )
+    if server_count == 3:
+        testscript.write(server_program + ' ' + server_input +' \n'+ 'sleep 2 \n'
+        'ssh ' + remote_hostone + '  "' + server_program + ' ' + server_input + '" &\n' +
+        'ssh ' + remote_hosttwo + '  "' + server_program + ' ' + server_input + '" &\n' )
+    elif server_count == 1:
+        testscript.write(server_program + ' ' + server_input + ' \n' + 'sleep 2 \n')
     testscript.write(client_program + ' ' + client_input +'\n')
-    testscript.write(server_kill + '\n' +
-    'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
-    'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
-     
+    if server_count == 3 & len(server_kill)!=0:
+        testscript.write(server_kill + '\n' +
+        'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
+        'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
+    elif server_count == 1 & len(server_kill)!=0:
+        testscript.write(server_kill + '\n' )
+
     testscript.close()
     os.system('chmod +x '+testname)
     os.system('./' + testname)
+    #os.system('rm -rf ' + testname)
     #os.system(server_program + " " + server_input)
     #os.system(client_program + " " + client_input)
     #os.system(server_kill)
@@ -115,7 +122,7 @@ if __name__ == "__main__":
     except KeyError as e:
         logger.error("Please set the environment variable " + str(e))
         sys.exit(1)
-    
+
     try:
         local_host = os.popen('cat $RDMA_ROOT/apps/env/local_host').readline().replace("\n","")
         local_host_ip = local_host[local_host.find("@")+1:]

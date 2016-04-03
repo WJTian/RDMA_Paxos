@@ -1,7 +1,4 @@
 #!/bin/bash
-if [ -f ~/.bashrc ]; then
-  source ~/.bashrc
-fi
 
 MEM_VER=1.4.25
 MCP_VER=0.1.1
@@ -9,7 +6,6 @@ MCP_VER=0.1.1
 #apt-get update
 #apt-get install -y libevent-dev g++ make wget
 
-cd $RDMA_ROOT/apps/memcached
 #memcached install
 if [ ! -f memcached-$MEM_VER.tar.gz ]
 then
@@ -17,14 +13,12 @@ then
 else
     echo "memcached-$MEM_VER.tar.gz exists."
 fi
-tar zxf memcached-$MEM_VER.tar.gz
-rm memcached-$MEM_VER.tar.gz
+tar zxvf memcached-$MEM_VER.tar.gz
 cd memcached-$MEM_VER
-./configure --prefix=$RDMA_ROOT/apps/memcached/install
+./configure --prefix=`pwd`/../memcached-install
 make 
 make install
 cd ..
-rm -rf memcached-$MEM_VER
 
 #mcperf install to test memcached
 if [ ! -f mcperf-$MCP_VER.tar.gz ]
@@ -33,22 +27,18 @@ then
 else
     echo "mcperf-$MCP_VER.tar.gz exists."
 fi
-tar zxf mcperf-$MCP_VER.tar.gz
-rm mcperf-$MCP_VER.tar.gz
+tar zxvf mcperf-$MCP_VER.tar.gz
 cd mcperf-$MCP_VER
-./configure --prefix=$RDMA_ROOT/apps/memcached/mcperf
-#cp ../before_configure.patch .
-#patch -p0 < before_configure.patch
-#if [ $? -ne 0 ]
-#then
-#    echo "Couldn't apply before_configure.patch" 
-#    exit 1
-#fi
+./configure --prefix=`pwd`/../mcperf-install
+cp ../before_configure.patch .
+patch -p0 < before_configure.patch
+if [ $? -ne 0 ]
+then
+    echo "Couldn't apply before_configure.patch" 
+    exit 1
+fi
 
 make 
 make install
 cd ..
-rm -rf mcperf-$MCP_VER
-
-
 

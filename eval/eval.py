@@ -21,9 +21,9 @@ def processOptions(options):
             logging.critical("strange option " + option)
     return hook_option,checkpoint_option,compare_option
 
-def enableServer(config,bench):
-    server_program=config.get(bench,'SERVER_PROGRAM')
-    server_input=config.get(bench,'SERVER_INPUT')
+#def enableServer(config,bench):
+#    server_program=config.get(bench,'SERVER_PROGRAM')
+#    server_input=config.get(bench,'SERVER_INPUT')
 
 
 
@@ -73,8 +73,11 @@ def processBench(config, bench):
 
 
 def readConfigFile(config_file):
+        default_values = {"EVAL_OPTIONS":"WITHOUT_HOOK,WITHOUT_CHECKPOINT,WITHOUT_OUTPUT_COMPARE",
+                          "SERVER_COUNT":"1","SERVER_PROGRAM":"","SERVER_INPUT":"","SERVER_KILL":"",
+                          "CLIENT_PROGRAM":"","CLIENT_INPUT":""}
 	try:
-		newConfig = ConfigParser.ConfigParser()
+		newConfig = ConfigParser.ConfigParser(default_values)
 		ret = newConfig.read(config_file)
 	except ConfigParser.MissingSectionHeaderError as e:
 		logging.error(str(e))
@@ -174,4 +177,3 @@ if __name__ == "__main__":
             if benchmark == "default":
                 continue
             processBench(local_config, benchmark)
-

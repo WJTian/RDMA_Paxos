@@ -13,30 +13,14 @@ SERVER_TWO_IP=${SERVER_TWO#*@}
 SERVER_THR=$(cat $RDMA_ROOT/apps/env/remote_host2)
 SERVER_THR_IP=${SERVER_THR#*@}
 
-$RDMA_ROOT/apps/mongodb/install/bin/mongod  \
-         --dbpath $RDMA_ROOT/apps/mongodb/install/data \
-         --logpath $RDMA_ROOT/apps/mongodb/install/data/mongod.log \
-         --pidfilepath $RDMA_ROOT/apps/mongodb/install/data/mongod.pid \
-         --bind_ip $SERVER_ONE_IP --fork --master \
-         --oplogSize 2048 --logappend --port 27017
+$RDMA_ROOT/apps/mongodb/install/bin/mongod --config $RDMA_ROOT/apps/mongodb/install/mongodb.conf
 
-ssh $SERVER_TWO "$RDMA_ROOT/apps/mongodb/install/bin/mongod  \
-         --dbpath $RDMA_ROOT/apps/mongodb/install/data \
-         --logpath $RDMA_ROOT/apps/mongodb/install/data/mongod.log \
-         --pidfilepath $RDMA_ROOT/apps/mongodb/install/data/mongod.pid \
-         --bind_ip $SERVER_TWO_IP --fork --slave --autoresync \
-         --source $SERVER_ONE_IP:27017 --logappend --port 27017"
+ssh $SERVER_TWO "$RDMA_ROOT/apps/mongodb/install/bin/mongod --config $RDMA_ROOT/apps/mongodb/install/mongodb.conf"
 
-ssh $SERVER_THR "$RDMA_ROOT/apps/mongodb/install/bin/mongod  \
-         --dbpath $RDMA_ROOT/apps/mongodb/install/data \
-         --logpath $RDMA_ROOT/apps/mongodb/install/data/mongod.log \
-         --pidfilepath $RDMA_ROOT/apps/mongodb/install/data/mongod.pid \
-         --bind_ip $SERVER_THR_IP --fork --slave --autoresync \
-         --source $SERVER_ONE_IP:27017 --logappend --port 27017"
+ssh $SERVER_THR "$RDMA_ROOT/apps/mongodb/install/bin/mongod --config $RDMA_ROOT/apps/mongodb/install/mongodb.conf"
 
 cd ycsb-mongodb
 
 ./bin/ycsb load mongodb -P ./workloads/workloadc -p mongodb.url=mongodb://$SERVER_ONE_IP:27017 
 ./bin/ycsb run mongodb -P ./workloads/workloadc -p mongodb.url=mongodb://$SERVER_ONE_IP:27017 
-
 

@@ -28,7 +28,7 @@ void tern_init_func(int argc, char **argv, char **env)
 		saved_init_func(argc, argv, env);
 
 	printf("tern_init_func is called\n");
-	char *config_path = "/home/hkucs/Documents/RDMA/target/nodes.local.cfg";
+	char *config_path = getenv("cfg_path");
 
 	char* log_dir = NULL;
 	const char* id = getenv("node_id");

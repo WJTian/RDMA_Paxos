@@ -11,7 +11,7 @@ This function will count the number of nodes whose hashvalue is the same as aim_
 int count_hash(output_peer_t* output_peers, int group_size, uint64_t aim_hash){
 	int i=0;
 	int cnt=0;
-	for (int i=0;i<group_size;i++){
+	for ( i=0;i<group_size;i++){
 		if (output_peers[i].hash == aim_hash){
 			cnt++;
 		}
@@ -30,7 +30,7 @@ int major_count_hash(output_peer_t* output_peers, int group_size){
 	int ret=0;
 	int max_cnt=0;
 	uint64_t aim_hash=0;
-	for (int i=0;i<group_size;i++){
+	for ( i=0;i<group_size;i++){
 		aim_hash = output_peers[i].hash;
 		ret = count_hash(output_peers, group_size, aim_hash);	
 		if (ret>max_cnt){
@@ -48,7 +48,7 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	int major_cnt =0; // number of majority.
 	int ret=0;	
 	for (i = 0; i < group_size; i++){
-		printf("[do_decision] node_id: %u, hashval: 0x%\n in round:%ld\n"PRIu64,output_peers[i].node_id,output_peers[i].hash,output_peers[i].idx);
+		printf("[do_decision] node_id: %u, hashval: 0x%"PRIu64" in round:%ld\n",output_peers[i].node_id,output_peers[i].hash,output_peers[i].idx);
 	}
 	threshold = group_size/2 +1;
 	/*

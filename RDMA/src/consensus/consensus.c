@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "../include/consensus/consensus.h"
 #include "../include/consensus/consensus-msg.h"
 
@@ -5,8 +7,7 @@
 #include "../include/rdma/dare_server.h"
 
 #include <netinet/tcp.h>
-#include <event2/event.h>
-#include <event2/bufferevent.h>
+#include <dlfcn.h>
 
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
@@ -41,10 +42,8 @@ consensus_component* init_consensus_comp(struct node_t* node,struct sockaddr_in 
         comp->highest_to_commit_vs->req_id = 0;
         comp->my_address = my_address;
         comp->lock = lock;
-        struct event_base* base = event_base_new();
-        comp->base = base;
 
-        comp->output_handler = init_output(cur_view);
+        comp->output_handler = init_output();
 
         goto consensus_init_exit;
 
@@ -149,7 +148,7 @@ recheck:
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
         }
         comp->output_handler->prev_offset = SRV_DATA->log->tail;
-        entry = log_get_entry(SRV_DATA->log, &comp->output_handler->prev_offset);
+        dare_log_entry_t *prev_entry = log_get_entry(SRV_DATA->log, &comp->output_handler->prev_offset);
         pthread_mutex_unlock(comp->lock);
 
         if (output_idx != 0)
@@ -157,29 +156,16 @@ recheck:
             output_peer_t output_peers[MAX_SERVER_COUNT];
             for (i = 0; i < comp->group_size; i++)
             {
-                output_peers[i].node_id = entry->ack[i].node_id;
-                output_peers[i].hash = entry->ack[i].hash;
-                output_peers[i].idx = *(long*)entry->data + 1;
-                SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)entry->data + 1, entry->ack[i].node_id, entry->ack[i].hash);
+                output_peers[i].node_id = prev_entry->ack[i].node_id;
+                output_peers[i].hash = prev_entry->ack[i].hash;
+                output_peers[i].idx = *(long*)prev_entry->data + 1;
+                SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)prev_entry->data + 1, i, prev_entry->ack[i].hash);
             }
             //do_decision(output_peers, comp->group_size);
         }
     }
 handle_submit_req_exit:
     return 0;
-}
-
-static void server_on_event(struct bufferevent* bev,short ev,void* arg){
-    consensus_component* comp = arg;
-    if(ev&BEV_EVENT_CONNECTED){
-        SYS_LOG(comp,"Connected to Consensus.\n");
-    }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
-        int err = EVUTIL_SOCKET_ERROR();
-            SYS_LOG(comp,"%s.\n",evutil_socket_error_to_string(err));
-        bufferevent_free(bev);
-        comp->s_conn = NULL;
-    }
-    return;
 }
 
 static int anetKeepAlive(char *err, int fd, int interval)
@@ -210,31 +196,6 @@ static int anetKeepAlive(char *err, int fd, int interval)
     return 0;
 }
 
-static void *event_loop(void* arg)
-{
-    consensus_component* comp = arg;
-    event_base_dispatch(comp->base);
-    pthread_exit(NULL);
-}
-
-static void do_action_connect(consensus_component* comp)
-{
-    evutil_socket_t fd;
-    fd = socket(AF_INET, SOCK_STREAM, 0);
-    comp->sfd = fd;
-    comp->s_conn = bufferevent_socket_new(comp->base,fd,BEV_OPT_CLOSE_ON_FREE);
-
-    bufferevent_setcb(comp->s_conn,NULL,NULL,server_on_event,comp);
-    bufferevent_enable(comp->s_conn,EV_READ|EV_WRITE|EV_PERSIST);
-    bufferevent_socket_connect(comp->s_conn,(struct sockaddr*)&comp->my_address,sizeof(struct sockaddr_in));
-
-    int enable = 1;
-    if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
-        printf("TCP_NODELAY SETTING ERROR!\n");
-
-    anetKeepAlive(NULL, fd, 15);
-}
-
 void *handle_accept_req(void* arg)
 {
     consensus_component* comp = arg;
@@ -248,7 +209,11 @@ void *handle_accept_req(void* arg)
     
     dare_log_entry_t* entry;
 
-    int idx = 0;
+    int idx = 0, sock;
+
+    typedef ssize_t (*orig_write_type)(int, void *, size_t);
+    orig_write_type orig_write;
+    orig_write = (orig_write_type) dlsym(RTLD_NEXT, "write");
 
     for (;;)
     {
@@ -294,20 +259,23 @@ void *handle_accept_req(void* arg)
 
                 if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
                 {
+                    if (idx == 0)
+                    {
+                        sock = socket(AF_INET, SOCK_STREAM, 0);
+                        connect(sock, (struct sockaddr*)&comp->my_address, sizeof(struct sockaddr_in));
+                        int enable = 1;
+                        if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
+                            printf("TCP_NODELAY SETTING ERROR!\n");
+                        anetKeepAlive(NULL, sock, 15);
+
+                        idx = 1;
+                    }
                     start = vstol(comp->highest_committed_vs)+1;
                     end = vstol(&entry->req_canbe_exed);
                     for(index = start; index <= end; index++)
                     {
                         retrieve_record(comp->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
-                        if (idx == 0)
-                            do_action_connect(comp);
-                        bufferevent_write(comp->s_conn,retrieve_data,data_size);
-                        if (idx == 0)
-                        {
-                            pthread_t event_thread;
-                            pthread_create(&event_thread, NULL, &event_loop, comp);
-                            idx = 1;
-                        }
+                        orig_write(sock, retrieve_data, data_size);
                     }
                     *(comp->highest_committed_vs) = entry->req_canbe_exed;
                 }

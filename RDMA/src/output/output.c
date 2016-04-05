@@ -2,7 +2,7 @@
 
 #include "../include/output/crc64.h"
 
-struct output_handler_t* init_output(view *cur_view)
+struct output_handler_t* init_output()
 {
 	struct output_handler_t *output_handler = (struct output_handler_t*)malloc(sizeof(struct output_handler_t));
 	memset((void*)output_handler, 0, sizeof(struct output_handler_t));

@@ -26,7 +26,7 @@ struct output_peer_t
 };
 typedef struct output_peer_t output_peer_t;
 
-struct output_handler_t* init_output(view*);
+struct output_handler_t* init_output();
 
 #ifdef __cplusplus
 extern "C" {

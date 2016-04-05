@@ -1,1 +1,1 @@
-LIBS := -lsupc++ -lpthread -lstdc++ -lrt -libverbs -L"$(ROOT_DIR)/../.local/lib" -levent -ldb -lconfig -L/usr/local/lib/ -lzookeeper_mt
+LIBS := -lsupc++ -lpthread -lstdc++ -lrt -libverbs -L"$(ROOT_DIR)/../.local/lib" -ldb -lconfig -L/usr/local/lib/ -lzookeeper_mt

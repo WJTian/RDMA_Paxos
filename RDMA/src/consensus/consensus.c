@@ -248,6 +248,8 @@ void *handle_accept_req(void* arg)
     
     dare_log_entry_t* entry;
 
+    int idx = 0;
+
     for (;;)
     {
         while(comp->cur_view->leader_id != comp->node_id)
@@ -297,13 +299,14 @@ void *handle_accept_req(void* arg)
                     for(index = start; index <= end; index++)
                     {
                         retrieve_record(comp->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
-                        if (SRV_DATA->log->tail == 0)
+                        if (idx == 0)
                             do_action_connect(comp);
                         bufferevent_write(comp->s_conn,retrieve_data,data_size);
-                        if (SRV_DATA->log->tail == 0)
+                        if (idx == 0)
                         {
                             pthread_t event_thread;
                             pthread_create(&event_thread, NULL, &event_loop, comp);
+                            idx = 1;
                         }
                     }
                     *(comp->highest_committed_vs) = entry->req_canbe_exed;

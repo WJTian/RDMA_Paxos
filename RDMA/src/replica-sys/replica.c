@@ -137,7 +137,7 @@ static int check_leader(view* cur_view, char *znode_path)
 
 int compare_tail(struct znodes_data *elem1, struct znodes_data *elem2)
 {
-    return elem2->tail - elem1->tail;
+    return ((elem2->tail > elem1->tail) ? 1 : 0);
 }
 
 int compare_path(struct znodes_data *elem1, struct znodes_data *elem2)

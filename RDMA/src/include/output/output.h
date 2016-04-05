@@ -7,13 +7,12 @@
 #define CONSISTENT    1
 #define NOTCONSISTENT 2
 
-#define CHECK_PERIOD 500 // odd
+#define CHECK_PERIOD 200
 
 struct output_handler_t
 {
 	long count;
 	list *output_list;
-	view *cur_view;
 	pthread_mutex_t lock;
 	uint64_t prev_offset;
 };

@@ -147,8 +147,8 @@ recheck:
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
         }
-        comp->output_handler->prev_offset = SRV_DATA->log->tail;
         dare_log_entry_t *prev_entry = log_get_entry(SRV_DATA->log, &comp->output_handler->prev_offset);
+        comp->output_handler->prev_offset = SRV_DATA->log->tail;
         pthread_mutex_unlock(comp->lock);
 
         if (output_idx != 0)
@@ -156,7 +156,7 @@ recheck:
             output_peer_t output_peers[MAX_SERVER_COUNT];
             for (i = 0; i < comp->group_size; i++)
             {
-                output_peers[i].node_id = prev_entry->ack[i].node_id;
+                output_peers[i].node_id = i;
                 output_peers[i].hash = prev_entry->ack[i].hash;
                 output_peers[i].idx = *(long*)prev_entry->data + 1;
                 SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)prev_entry->data + 1, i, prev_entry->ack[i].hash);
@@ -299,7 +299,6 @@ void *handle_accept_req(void* arg)
                 rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
                 post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
-                comp->output_handler->prev_offset = SRV_DATA->log->tail;
             }
         }
     }

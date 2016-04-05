@@ -8,6 +8,7 @@ struct output_handler_t* init_output()
 	memset((void*)output_handler, 0, sizeof(struct output_handler_t));
 	output_handler->output_list = listCreate();
 	output_handler->count = 0;
+	output_handler->prev_offset = 0;
 	pthread_mutex_init(&output_handler->lock, NULL);
 	return output_handler;
 }

@@ -21,9 +21,9 @@ def processOptions(options):
             logging.critical("strange option " + option)
     return hook_option,checkpoint_option,compare_option
 
-#def enableServer(config,bench):
-#    server_program=config.get(bench,'SERVER_PROGRAM')
-#    server_input=config.get(bench,'SERVER_INPUT')
+def enableServer(config,bench):
+    server_program=config.get(bench,'SERVER_PROGRAM')
+    server_input=config.get(bench,'SERVER_INPUT')
 
 
 
@@ -37,7 +37,12 @@ def processBench(config, bench):
     server_count=config.getint(bench,'SERVER_COUNT')
     server_program=config.get(bench,'SERVER_PROGRAM')
     #if len(server_program)!=0:
-
+    if hook_option == "WITH_HOOK":
+        hook_program = "env node_id=myid LD_LIBRARY_PATH=$RDMA_ROOT/RDMA/.local/lib  LD_PRELOAD=$RDMA_ROOT/RDMA/target/interpose.so "
+    elif hook_option == "WITHOUT_HOOK":
+        hook_program = ""
+    else:
+        logger.error("No such hook option")   
 
     server_input=config.get(bench,'SERVER_INPUT')
     server_kill=config.get(bench,'SERVER_KILL')
@@ -48,12 +53,12 @@ def processBench(config, bench):
     testscript = open(testname,"w")
     testscript.write('#! /bin/bash\n')
     if server_count == 3:
-        testscript.write(server_program + ' ' + server_input +' \n'+ 'sleep 2 \n'
-        'ssh ' + remote_hostone + '  "' + server_program + ' ' + server_input + '" &\n' +
-        'ssh ' + remote_hosttwo + '  "' + server_program + ' ' + server_input + '" &\n' )
+        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +' & \n'+ 'sleep 2 \n' +
+        'ssh ' + remote_hostone + '  "' + hook_program.replace("myid",node_id_two) + server_program + ' ' + server_input + '" &\n' + 'sleep 2 \n' +
+        'ssh ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '" &\n'+ 'sleep 20 \n' )
     elif server_count == 1:
-        testscript.write(server_program + ' ' + server_input + ' \n' + 'sleep 2 \n')
-    testscript.write(client_program + ' ' + client_input +'\n')
+        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' \n' + 'sleep 20 \n')
+    testscript.write(client_program + ' ' + client_input +'\n' + 'sleep 20 \n')
     if server_count == 3 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
@@ -129,10 +134,13 @@ if __name__ == "__main__":
     try:
         local_host = os.popen('cat $RDMA_ROOT/apps/env/local_host').readline().replace("\n","")
         local_host_ip = local_host[local_host.find("@")+1:]
+        node_id_one = "0 "
         remote_hostone = os.popen('cat $RDMA_ROOT/apps/env/remote_host1').readline().replace("\n","")
         remote_hostone_ip = remote_hostone[remote_hostone.find("@")+1:]
+        node_id_two = "1 "
         remote_hosttwo = os.popen('cat $RDMA_ROOT/apps/env/remote_host2').readline().replace("\n","")
         remote_hosttwo_ip = remote_hosttwo[remote_hosttwo.find("@")+1:]
+        node_id_thr = "2 "
     except KeyError as e:
         logger.error("Please set the host file " + str(e))
         sys.exit(1)

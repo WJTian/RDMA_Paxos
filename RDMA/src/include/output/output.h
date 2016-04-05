@@ -19,6 +19,14 @@ struct output_handler_t
 };
 typedef struct output_handler_t output_handler_t;
 
+struct output_peer_t
+{
+	uint32_t node_id;
+	uint64_t hash;
+	long idx;
+};
+typedef struct output_peer_t output_peer_t;
+
 struct output_handler_t* init_output(view*);
 
 #ifdef __cplusplus

@@ -120,7 +120,7 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 	orig_recv = (orig_recv_type) dlsym(RTLD_NEXT, "recv");
 	ssize_t ret = orig_recv(sockfd, buf, len, flags);
 
-	if (proxy != NULL && proxy->con_node->zfd != sockfd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id)
+	if (proxy != NULL && proxy->con_node->zfd != sockfd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id && proxy->con_node->consensus_comp->sfd != sockfd)
 	{
 		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM);
 	}
@@ -138,7 +138,7 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 	struct stat sb;
 	fstat(fd, &sb);
 
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id)
+	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id && proxy->con_node->consensus_comp->sfd != fd)
 	{
 		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM);
 	}
@@ -156,7 +156,32 @@ extern "C" ssize_t write(int fd, const void *buf, size_t count)
 	struct stat sb;
 	fstat(fd, &sb);
 
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd)
+	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd && proxy->con_node->consensus_comp->sfd != fd)
+	{
+		pthread_mutex_lock(&proxy->con_node->consensus_comp->output_handler->lock);
+		store_output(buf, ret, proxy->con_node->consensus_comp->output_handler);
+		long output_idx = proxy->con_node->consensus_comp->output_handler->count;
+		pthread_mutex_unlock(&proxy->con_node->consensus_comp->output_handler->lock);
+		if (proxy->con_node->cur_view.leader_id == proxy->con_node->node_id && output_idx % CHECK_PERIOD == 0)
+		{
+			rsm_op(proxy->con_node->consensus_comp, &output_idx, sizeof(long), CHECK);
+		}
+	}
+
+	return ret;
+}
+
+extern "C" ssize_t send(int fd, const void *buf, size_t len, int flags)
+{
+	typedef ssize_t (*orig_send_type)(int, const void *, size_t, int);
+	orig_send_type orig_send;
+	orig_send = (orig_send_type) dlsym(RTLD_NEXT, "send");
+	ssize_t ret = orig_send(fd, buf, len, flags);
+
+	struct stat sb;
+	fstat(fd, &sb);
+
+	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd && proxy->con_node->consensus_comp->sfd != fd)
 	{
 		pthread_mutex_lock(&proxy->con_node->consensus_comp->output_handler->lock);
 		store_output(buf, ret, proxy->con_node->consensus_comp->output_handler);

@@ -37,6 +37,9 @@ struct consensus_component_t{ con_role my_role;
     
     pthread_mutex_t* lock;
     struct output_handler_t* output_handler;
+    struct event_base* base;
+    int sfd;
+    struct bufferevent* s_conn;
 };
 typedef struct consensus_component_t consensus_component; 
 

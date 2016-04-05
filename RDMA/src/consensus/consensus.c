@@ -1,12 +1,12 @@
-#define _GNU_SOURCE
-
 #include "../include/consensus/consensus.h"
 #include "../include/consensus/consensus-msg.h"
 
 #include "../include/rdma/dare_ibv_rc.h"
 #include "../include/rdma/dare_server.h"
 
-#include <dlfcn.h>
+#include <netinet/tcp.h>
+#include <event2/event.h>
+#include <event2/bufferevent.h>
 
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
@@ -41,6 +41,8 @@ consensus_component* init_consensus_comp(struct node_t* node,struct sockaddr_in 
         comp->highest_to_commit_vs->req_id = 0;
         comp->my_address = my_address;
         comp->lock = lock;
+        struct event_base* base = event_base_new();
+        comp->base = base;
 
         comp->output_handler = init_output(cur_view);
 
@@ -124,57 +126,113 @@ recheck:
     if (type == CHECK)
     {
         pthread_mutex_lock(comp->lock);
-        if ((*(long*)data / CHECK_PERIOD) % 2 != 0)
+
+        long output_idx = *(long*)data - CHECK_PERIOD;
+        entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type);
+        listNode *node = listIndex(comp->output_handler->output_list, output_idx);
+        entry->ack[comp->node_id].hash = *(uint64_t*)listNodeValue(node);
+        entry->ack[comp->node_id].node_id = comp->node_id;
+
+        uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
+        rem_mem_t rm;
+        dare_ib_ep_t *ep;
+
+        uint32_t i;
+        for (i = 0; i < comp->group_size; i++) {
+            ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
+            if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
+                continue;
+
+            rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
+            rm.rkey = ep->rc_ep.rmt_mr.rkey;
+
+            post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
+        }
+        comp->output_handler->prev_offset = SRV_DATA->log->tail;
+        entry = log_get_entry(SRV_DATA->log, &comp->output_handler->prev_offset);
+        pthread_mutex_unlock(comp->lock);
+
+        if (output_idx != 0)
         {
-            long output_idx = *(long*)data - CHECK_PERIOD;
-            entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type);
-            listNode *node = listIndex(comp->output_handler->output_list, output_idx);
-            entry->ack[comp->node_id].hash = *(uint64_t*)listNodeValue(node);
-            entry->ack[comp->node_id].node_id = comp->node_id;
-
-            uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
-            rem_mem_t rm;
-            dare_ib_ep_t *ep;
-
-            uint32_t i;
-            for (i = 0; i < comp->group_size; i++) {
-                ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
-                if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
-                    continue;
-
-                rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
-                rm.rkey = ep->rc_ep.rmt_mr.rkey;
-
-                post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
-            }
-            comp->output_handler->prev_offset = SRV_DATA->log->tail;
-        } else {
-            entry = log_get_entry(SRV_DATA->log, &comp->output_handler->prev_offset);
-            uint32_t i;
+            output_peer_t output_peers[MAX_SERVER_COUNT];
             for (i = 0; i < comp->group_size; i++)
             {
+                output_peers[i].node_id = entry->ack[i].node_id;
+                output_peers[i].hash = entry->ack[i].hash;
+                output_peers[i].idx = *(long*)entry->data + 1;
                 SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)entry->data + 1, entry->ack[i].node_id, entry->ack[i].hash);
-                entry->ack[i].flag = CONSISTENT;
             }
-
-            rem_mem_t rm;
-            dare_ib_ep_t *ep;
-
-            for (i = 0; i < comp->group_size; i++) {
-                ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
-                if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
-                    continue;
-
-                rm.raddr = ep->rc_ep.rmt_mr.raddr + comp->output_handler->prev_offset + ACCEPT_ACK_SIZE * i + offsetof(dare_log_t, entries);
-                rm.rkey = ep->rc_ep.rmt_mr.rkey;
-
-                post_send(i, &entry->ack[i], ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
-            }
+            //do_decision(output_peers, comp->group_size);
         }
-        pthread_mutex_unlock(comp->lock);
     }
 handle_submit_req_exit:
     return 0;
+}
+
+static void server_on_event(struct bufferevent* bev,short ev,void* arg){
+    consensus_component* comp = arg;
+    if(ev&BEV_EVENT_CONNECTED){
+        SYS_LOG(comp,"Connected to Consensus.\n");
+    }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
+        int err = EVUTIL_SOCKET_ERROR();
+            SYS_LOG(comp,"%s.\n",evutil_socket_error_to_string(err));
+        bufferevent_free(bev);
+        comp->s_conn = NULL;
+    }
+    return;
+}
+
+static int anetKeepAlive(char *err, int fd, int interval)
+{
+    int val = 1;
+
+    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
+    {
+        fprintf(stderr, "setsockopt SO_KEEPALIVE: %s", strerror(errno));
+    }
+
+    val = interval;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0) {
+        fprintf(stderr, "setsockopt TCP_KEEPIDLE: %s\n", strerror(errno));
+    }
+
+    val = interval/3;
+    if (val == 0) val = 1;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0) {
+        fprintf(stderr, "setsockopt TCP_KEEPINTVL: %s\n", strerror(errno));
+    }
+
+    val = 3;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0) {
+        fprintf(stderr, "setsockopt TCP_KEEPCNT: %s\n", strerror(errno));
+    }
+
+    return 0;
+}
+
+static void *event_loop(void* arg)
+{
+    consensus_component* comp = arg;
+    event_base_dispatch(comp->base);
+    pthread_exit(NULL);
+}
+
+static void do_action_connect(consensus_component* comp)
+{
+    evutil_socket_t fd;
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    comp->sfd = fd;
+    comp->s_conn = bufferevent_socket_new(comp->base,fd,BEV_OPT_CLOSE_ON_FREE);
+
+    bufferevent_setcb(comp->s_conn,NULL,NULL,server_on_event,comp);
+    bufferevent_enable(comp->s_conn,EV_READ|EV_WRITE|EV_PERSIST);
+    bufferevent_socket_connect(comp->s_conn,(struct sockaddr*)&comp->my_address,sizeof(struct sockaddr_in));
+
+    int enable = 1;
+    if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
+        printf("TCP_NODELAY SETTING ERROR!\n");
+
+    anetKeepAlive(NULL, fd, 15);
 }
 
 void *handle_accept_req(void* arg)
@@ -234,22 +292,21 @@ void *handle_accept_req(void* arg)
 
                 if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
                 {
-                    int sock = socket(AF_INET, SOCK_STREAM, 0);
-                    connect(sock, (struct sockaddr*)&comp->my_address, sizeof(struct sockaddr_in)); // - We have to reconnect every time. Broken pipe. Maybe the server closes the socket. (Mongoose and Redis)
-                                                                                                    // - Redis: Accepting client connection: accept: Too many open files
-                    typedef ssize_t (*orig_write_type)(int, void *, size_t);
-                    orig_write_type orig_write;
-                    orig_write = (orig_write_type) dlsym(RTLD_NEXT, "write");
-
                     start = vstol(comp->highest_committed_vs)+1;
                     end = vstol(&entry->req_canbe_exed);
                     for(index = start; index <= end; index++)
                     {
                         retrieve_record(comp->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
-                        orig_write(sock, retrieve_data, data_size);
+                        if (SRV_DATA->log->tail == 0)
+                            do_action_connect(comp);
+                        bufferevent_write(comp->s_conn,retrieve_data,data_size);
+                        if (SRV_DATA->log->tail == 0)
+                        {
+                            pthread_t event_thread;
+                            pthread_create(&event_thread, NULL, &event_loop, comp);
+                        }
                     }
                     *(comp->highest_committed_vs) = entry->req_canbe_exed;
-                    //close(sock);
                 }
             }
             if (entry->type == CHECK)
@@ -271,12 +328,6 @@ void *handle_accept_req(void* arg)
                 rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
                 post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
-
-                if (*(long*)entry->data != 0)
-                {
-                    entry = log_get_entry(SRV_DATA->log, &comp->output_handler->prev_offset);
-                    SYS_LOG(comp, "My output is %s until idx %ld\n", entry->ack[comp->node_id].flag == CONSISTENT ? "CONSISTENT" : "NOTCONSISTENT", *(long*)entry->data + 1);
-                }
                 comp->output_handler->prev_offset = SRV_DATA->log->tail;
             }
         }

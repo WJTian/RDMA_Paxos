@@ -6,12 +6,15 @@
 C_SRCS += \
 ../src/output/output.c \
 ../src/output/adlist.c \
-../src/output/crc64.c
+../src/output/crc64.c \
+../src/output/decision.c \
+
 
 OBJS += \
 ./src/output/output.o \
 ./src/output/adlist.o \
 ./src/output/crc64.o \
+./src/output/decision.o \
 
 
 # Each subdirectory must supply rules for building sources it contributes

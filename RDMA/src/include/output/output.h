@@ -33,7 +33,7 @@ extern "C" {
 #endif
 
 	void store_output(const void *buf, ssize_t ret, struct output_handler_t* output_handler);
-
+	int do_decision(output_peer_t* output_peers, int group_size);
 #ifdef __cplusplus
 }
 #endif

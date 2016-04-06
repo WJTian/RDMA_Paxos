@@ -7,7 +7,7 @@
 #define CONSISTENT    1
 #define NOTCONSISTENT 2
 
-#define CHECK_PERIOD 200
+#define CHECK_PERIOD 1000
 
 struct output_handler_t
 {

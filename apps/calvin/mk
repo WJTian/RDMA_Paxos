@@ -11,12 +11,12 @@ if [ ! -d calvin_bin ]; then
 fi
 cd calvin_bin
 
-SERVER_ONE=$(cat $RDMA_ROOT/apps/env/local_host)
-SERVER_ONE_IP=${SERVER_ONE#*@}
-SERVER_TWO=$(cat $RDMA_ROOT/apps/env/remote_host1)
-SERVER_TWO_IP=${SERVER_TWO#*@}
-SERVER_THR=$(cat $RDMA_ROOT/apps/env/remote_host2)
-SERVER_THR_IP=${SERVER_THR#*@}
+SERVER_ONE_IP=$(cat $RDMA_ROOT/apps/env/local_host)
+SERVER_ONE=$LOGNMAE@$SERVER_ONE_IP
+SERVER_TWO_IP=$(cat $RDMA_ROOT/apps/env/remote_host1)
+SERVER_TWO=$LOGNMAE@$SERVER_TWO_IP
+SERVER_THR_IP=$(cat $RDMA_ROOT/apps/env/remote_host2)
+SERVER_THR=$LOGNMAE@$SERVER_THR_IP
 
 sed -i "s/server_one_ip/$SERVER_ONE_IP/g" ./deploy-run.conf
 sed -i "s/server_two_ip/$SERVER_TWO_IP/g" ./deploy-run.conf

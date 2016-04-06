@@ -47,7 +47,7 @@ consensus_component* init_consensus_comp(struct node_t*,struct sockaddr_in,pthre
 #ifdef __cplusplus
 extern "C" {
 #endif
-    int rsm_op(consensus_component* comp, void* data, ssize_t data_size, uint8_t type);
+    int rsm_op(consensus_component* comp, void* data, ssize_t data_size, uint8_t type, output_peer_t *output_peers);
     void *handle_accept_req(void* arg);
 #ifdef __cplusplus
 }

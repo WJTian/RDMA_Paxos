@@ -15,6 +15,7 @@ struct output_handler_t
 	list *output_list;
 	pthread_mutex_t lock;
 	uint64_t prev_offset;
+	uint64_t hash;
 };
 typedef struct output_handler_t output_handler_t;
 

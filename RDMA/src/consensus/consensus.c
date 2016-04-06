@@ -161,7 +161,7 @@ recheck:
                 output_peers[i].idx = *(long*)prev_entry->data + 1;
                 SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)prev_entry->data + 1, i, prev_entry->ack[i].hash);
             }
-            //do_decision(output_peers, comp->group_size);
+            do_decision(output_peers, comp->group_size);
         }
     }
 handle_submit_req_exit:

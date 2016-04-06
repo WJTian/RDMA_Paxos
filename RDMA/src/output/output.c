@@ -10,22 +10,20 @@ struct output_handler_t* init_output()
 	output_handler->count = 0;
 	output_handler->prev_offset = 0;
 	pthread_mutex_init(&output_handler->lock, NULL);
+	output_handler->hash = 0;
 	return output_handler;
 }
 
 void store_output(const void *buf, ssize_t ret, struct output_handler_t* output_handler)
 {
 	const unsigned char *s = (const unsigned char *)buf;
-	listNode *last_node = listLast(output_handler->output_list);
-	uint64_t *new_hash = (uint64_t*)malloc(sizeof(uint64_t));
-	if (last_node != NULL)
+	output_handler->hash = crc64(output_handler->hash, s, ret);
+	if (output_handler->count % CHECK_PERIOD == 0)
 	{
-		uint64_t *last_hash = (uint64_t*)listNodeValue(last_node);
-		*new_hash = crc64(*last_hash, s, ret);
-	} else {
-		*new_hash = crc64(0, s, ret);
+		uint64_t *new_hash = (uint64_t*)malloc(sizeof(uint64_t));
+		*new_hash = output_handler->hash;
+		listAddNodeTail(output_handler->output_list, (void*)new_hash); // Add a new node to the list, to tail, containing the specified 'value' pointer as value. On error, NULL is returned.
 	}
-	listAddNodeTail(output_handler->output_list, (void*)new_hash); // Add a new node to the list, to tail, containing the specified 'value' pointer as value. On error, NULL is returned.
 	output_handler->count++;
 	return;
 }

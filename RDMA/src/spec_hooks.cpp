@@ -7,6 +7,7 @@
 #include "include/consensus/consensus.h"
 #include "include/proxy/proxy.h"
 #include "include/output/output.h"
+#include "include/rdma/dare.h"
 
 #define dprintf(fmt...)
 
@@ -122,7 +123,7 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 
 	if (proxy != NULL && proxy->con_node->zfd != sockfd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id)
 	{
-		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM);
+		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM, NULL);
 	}
 
 	return ret;
@@ -140,7 +141,7 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 
 	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id)
 	{
-		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM);
+		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM, NULL);
 	}
 
 	return ret;
@@ -164,7 +165,12 @@ extern "C" ssize_t write(int fd, const void *buf, size_t count)
 		pthread_mutex_unlock(&proxy->con_node->consensus_comp->output_handler->lock);
 		if (proxy->con_node->cur_view.leader_id == proxy->con_node->node_id && output_idx % CHECK_PERIOD == 0)
 		{
-			rsm_op(proxy->con_node->consensus_comp, &output_idx, sizeof(long), CHECK);
+			output_peer_t output_peers[MAX_SERVER_COUNT];
+			rsm_op(proxy->con_node->consensus_comp, &output_idx, sizeof(long), CHECK, output_peers);
+			if (output_idx != CHECK_PERIOD)
+			{
+				do_decision(output_peers, proxy->con_node->group_size);
+			}
 		}
 	}
 
@@ -189,7 +195,12 @@ extern "C" ssize_t send(int fd, const void *buf, size_t len, int flags)
 		pthread_mutex_unlock(&proxy->con_node->consensus_comp->output_handler->lock);
 		if (proxy->con_node->cur_view.leader_id == proxy->con_node->node_id && output_idx % CHECK_PERIOD == 0)
 		{
-			rsm_op(proxy->con_node->consensus_comp, &output_idx, sizeof(long), CHECK);
+			output_peer_t output_peers[MAX_SERVER_COUNT];
+			rsm_op(proxy->con_node->consensus_comp, &output_idx, sizeof(long), CHECK, output_peers);
+			if (output_idx != CHECK_PERIOD)
+			{
+				do_decision(output_peers, proxy->con_node->group_size);
+			}
 		}
 	}
 

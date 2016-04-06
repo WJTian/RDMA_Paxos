@@ -68,7 +68,7 @@ static int reached_quorum(uint64_t bit_map, int group_size){
     }
 }
 
-int rsm_op(struct consensus_component_t* comp, void* data, ssize_t data_size, uint8_t type)
+int rsm_op(struct consensus_component_t* comp, void* data, ssize_t data_size, uint8_t type, output_peer_t *output_peers)
 {
     dare_log_entry_t *entry;
     if (type == CSM)
@@ -126,7 +126,7 @@ recheck:
     {
         pthread_mutex_lock(comp->lock);
 
-        long output_idx = *(long*)data - CHECK_PERIOD;
+        long output_idx = *(long*)data / CHECK_PERIOD - 1;
         entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type);
         listNode *node = listIndex(comp->output_handler->output_list, output_idx);
         entry->ack[comp->node_id].hash = *(uint64_t*)listNodeValue(node);
@@ -153,15 +153,13 @@ recheck:
 
         if (output_idx != 0)
         {
-            output_peer_t output_peers[MAX_SERVER_COUNT];
             for (i = 0; i < comp->group_size; i++)
             {
                 output_peers[i].node_id = i;
                 output_peers[i].hash = prev_entry->ack[i].hash;
-                output_peers[i].idx = *(long*)prev_entry->data + 1;
-                SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)prev_entry->data + 1, i, prev_entry->ack[i].hash);
+                output_peers[i].idx = *(long*)prev_entry->data * CHECK_PERIOD + 1;
+                SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)prev_entry->data * CHECK_PERIOD + 1, i, prev_entry->ack[i].hash);
             }
-            do_decision(output_peers, comp->group_size);
         }
     }
 handle_submit_req_exit:

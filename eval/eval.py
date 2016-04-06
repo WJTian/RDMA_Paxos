@@ -38,7 +38,7 @@ def processBench(config, bench):
     server_program=config.get(bench,'SERVER_PROGRAM')
     #if len(server_program)!=0:
     if hook_option == "WITH_HOOK":
-        hook_program = "env node_id=myid LD_LIBRARY_PATH=$RDMA_ROOT/RDMA/.local/lib  LD_PRELOAD=$RDMA_ROOT/RDMA/target/interpose.so "
+        hook_program = "env node_id=myid LD_LIBRARY_PATH=$RDMA_ROOT/RDMA/.local/lib  cfg_path=$RDMA_ROOT/RDMA/target/nodes.local.cfg LD_PRELOAD=$RDMA_ROOT/RDMA/target/interpose.so "
     elif hook_option == "WITHOUT_HOOK":
         hook_program = ""
     else:
@@ -132,14 +132,16 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        local_host = os.popen('cat $RDMA_ROOT/apps/env/local_host').readline().replace("\n","")
-        local_host_ip = local_host[local_host.find("@")+1:]
+        username = os.popen('echo $USER').readline().replace("\n","")
+        local_host_ip = os.popen('cat $RDMA_ROOT/apps/env/local_host').readline().replace("\n","")
+        
+        local_host = username + "@" + local_host_ip
         node_id_one = "0 "
-        remote_hostone = os.popen('cat $RDMA_ROOT/apps/env/remote_host1').readline().replace("\n","")
-        remote_hostone_ip = remote_hostone[remote_hostone.find("@")+1:]
+        remote_hostone_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host1').readline().replace("\n","")
+        remote_hostone = username + "@" + remote_hostone_ip
         node_id_two = "1 "
-        remote_hosttwo = os.popen('cat $RDMA_ROOT/apps/env/remote_host2').readline().replace("\n","")
-        remote_hosttwo_ip = remote_hosttwo[remote_hosttwo.find("@")+1:]
+        remote_hosttwo_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host2').readline().replace("\n","")
+        remote_hosttwo = username + "@" + remote_hosttwo_ip
         node_id_thr = "2 "
     except KeyError as e:
         logger.error("Please set the host file " + str(e))

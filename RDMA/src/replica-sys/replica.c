@@ -250,7 +250,7 @@ int initialize_node(node* my_node,list* excluded_fd,const char* log_path, void (
 
     my_node->consensus_comp = NULL;
 
-    my_node->consensus_comp = init_consensus_comp(my_node,&my_node->lock,
+    my_node->consensus_comp = init_consensus_comp(my_node,&my_node->lock,my_node->config.measure_latency,
             my_node->node_id,my_node->sys_log_file,my_node->sys_log,
             my_node->stat_log,my_node->db_name,db_ptr,my_node->group_size,
             &my_node->cur_view,&my_node->highest_to_commit,&my_node->highest_committed,

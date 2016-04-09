@@ -31,9 +31,29 @@ void proxy_on_accept(int fd, proxy_node* proxy)
     return;
 }
 
+void proxy_on_close(int fd, proxy_node* proxy)
+{
+    uint32_t leader_id = get_leader_id(proxy->con_node);
+    if (proxy->node_id == leader_id)
+    {
+        socket_pair* ret = NULL;
+        MY_HASH_GET(&fd,proxy->hash_map,ret);
+        ret->key = -1;
+
+        proxy_close_msg* cl_msg = (proxy_close_msg*)malloc(sizeof(proxy_close_msg));
+        cl_msg->header.action = P_CLOSE;
+        cl_msg->header.connection_id = fd;
+
+        rsm_op(proxy->con_node, PROXY_CONNECT_MSG_SIZE, cl_msg, NULL);
+        free(cl_msg);
+    }
+
+    return;
+}
+
 void proxy_on_check(int fd, const void* buf, size_t ret, proxy_node* proxy)
 {
-    if (proxy->output_check && listSearchKey(proxy->excluded_fd, &fd) == NULL)
+    if (proxy->check_output && listSearchKey(proxy->excluded_fd, &fd) == NULL)
     {
         pthread_mutex_lock(&output_handler.lock);
         store_output(buf, ret);
@@ -117,6 +137,24 @@ void client_side_on_read(proxy_node* proxy, void *buf, size_t ret, output_peer_t
     return;
 };
 
+static void do_action_close(size_t data_size,void* data,void* arg){
+    proxy_node* proxy = arg;
+    proxy_close_msg* msg = data;
+    socket_pair* ret = NULL;
+    MY_HASH_GET(&msg->header.connection_id,proxy->hash_map,ret);
+    if(NULL==ret){
+        goto do_action_close_exit;
+    }else{      
+        if(ret->p_s!=NULL){
+            ret->key = -1;
+            listNode *node = listSearchKey(proxy->excluded_fd, ret->p_s);
+            listDelNode(proxy->excluded_fd, node);
+        }
+    }
+do_action_close_exit:
+    return;
+}
+
 static void do_action_connect(size_t data_size,void* data,void* arg){
     
     proxy_node* proxy = arg;
@@ -193,6 +231,12 @@ static void update_state(size_t data_size,void* data,void* arg){
                 fprintf(output,"Operation: Sends data.\n");
             }
             do_action_send(data_size,data,arg);
+            break;
+        case P_CLOSE:
+            if(output!=NULL){
+                fprintf(output,"Operation: Closes.\n");
+            }
+            do_action_close(data_size,data,arg);
             break;
         default:
             break;

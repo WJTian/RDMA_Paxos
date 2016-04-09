@@ -4,6 +4,8 @@
 #include "../include/rdma/dare_ibv_rc.h"
 #include "../include/rdma/dare_server.h"
 
+#define BILLION 1000000000L
+
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
@@ -22,6 +24,8 @@ typedef struct consensus_component_t{ con_role my_role;
     view_stamp* highest_to_commit_vs;
     view_stamp* highest_committed_vs;
 
+    int measure_latency;
+
     db* db_ptr;
     
     pthread_mutex_t* lock;
@@ -29,7 +33,7 @@ typedef struct consensus_component_t{ con_role my_role;
     void* up_para;
 }consensus_component;
 
-consensus_component* init_consensus_comp(struct node_t* node,pthread_mutex_t* lock,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
+consensus_component* init_consensus_comp(struct node_t* node,int measure_latency,pthread_mutex_t* lock,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
     view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,void* arg){
     consensus_component* comp = (consensus_component*)malloc(sizeof(consensus_component));
     memset(comp,0,sizeof(consensus_component));
@@ -38,6 +42,7 @@ consensus_component* init_consensus_comp(struct node_t* node,pthread_mutex_t* lo
         comp->db_ptr = db_ptr;  
         comp->sys_log = sys_log;
         comp->stat_log = stat_log;
+        comp->measure_latency = measure_latency;
         comp->sys_log_file = log;
         comp->my_node = node;
         comp->node_id = node_id;
@@ -92,8 +97,13 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
     if (output_peers == NULL)
     {
         pthread_mutex_lock(comp->lock);
+        if (comp->measure_latency)
+        {
+            struct timespec end;
+            clock_gettime(CLOCK_MONOTONIC, &start);
+        }
+
         view_stamp next = get_next_view_stamp(comp);
-        SYS_LOG(comp, "Leader trying to reach a consensus on view id %"PRIu32", req id %"PRIu32"\n", next.view_id, next.req_id);
 
         db_key_type record_no = vstol(&next);
         uint64_t bit_map = (1<<comp->node_id);
@@ -134,7 +144,13 @@ recheck:
             //TODO: do we need the lock here?
             while (entry->msg_vs.req_id > comp->highest_committed_vs->req_id + 1);
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
-            SYS_LOG(comp, "Leader finished the consensus on view id %"PRIu32", req id %"PRIu32"\n", next.view_id, next.req_id);
+            if (comp->measure_latency)
+            {
+                struct timespec end;
+                clock_gettime(CLOCK_MONOTONIC, &end);
+                uint64_t diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
+                SYS_LOG(comp, "view id %"PRIu32", req id %"PRIu32": %llu nanoseconds\n", next.view_id, next.req_id, (long long unsigned int) diff);
+            }
         }else{
             goto recheck;
         }

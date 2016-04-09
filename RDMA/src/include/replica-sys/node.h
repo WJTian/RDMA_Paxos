@@ -10,6 +10,10 @@ typedef struct peer_t{
 	size_t sock_len;
 }peer;
 
+typedef struct node_config_t{
+	int latency_measure;
+}node_config;
+
 typedef void (*user_cb)(size_t data_size,void* data,void* arg);
 
 typedef struct node_t{
@@ -23,9 +27,11 @@ typedef struct node_t{
 	//consensus component
 	struct consensus_component_t* consensus_comp;
 	// replica group
-	struct sockaddr_in my_address;
 	uint32_t group_size;
 	peer* peer_pool;
+
+	node_config config;
+
 	//databse part
 	char* db_name;
 	db* db_ptr;

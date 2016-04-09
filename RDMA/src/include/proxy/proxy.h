@@ -38,7 +38,7 @@ typedef struct proxy_node_t{
     int stat_log;
     int req_log;
 
-    int output_check;
+    int check_output;
     int rsm;
 
     list *excluded_fd;
@@ -74,6 +74,11 @@ typedef struct proxy_send_msg_t{
     char data[0];
 }__attribute__((packed))proxy_send_msg;
 #define PROXY_SEND_MSG_SIZE(M) (M->data_size+sizeof(proxy_send_msg))
+
+typedef struct proxy_close_msg_t{
+    proxy_msg_header header;
+}proxy_close_msg;
+#define PROXY_CLOSE_MSG_SIZE (sizeof(proxy_close_msg))
 
 #define MY_HASH_SET(value,hash_map) do{ \
     HASH_ADD(hh,hash_map,key,sizeof(hk_t),value);}while(0)

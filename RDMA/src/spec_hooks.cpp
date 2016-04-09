@@ -127,6 +127,14 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 
 extern "C" int close(int fildes)
 {
+	struct stat sb;
+	fstat(fildes, &sb);
+	
+	if (proxy != NULL && (sb.st_mode & S_IFMT) == S_IFSOCK)
+	{
+		proxy_on_close(fildes);
+	}
+
 	typedef int (*orig_close_type)(int);
 	orig_close_type orig_close;
 	orig_close = (orig_close_type) dlsym(RTLD_NEXT, "close");

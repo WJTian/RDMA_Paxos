@@ -28,9 +28,9 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         if(config_setting_lookup_int(proxy_global_config,"rsm",&rsm)){
             cur_node->rsm = rsm;
         }
-        int output_check;
-        if(config_setting_lookup_int(proxy_global_config,"output_check",&output_check)){
-            cur_node->output_check = output_check;
+        int check_output;
+        if(config_setting_lookup_int(proxy_global_config,"check_output",&check_output)){
+            cur_node->check_output = check_output;
         }
     }
 

@@ -20,7 +20,19 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         goto goto_config_error;
     }
 
-// parse proxy address
+    config_setting_t *proxy_global_config = NULL;
+    proxy_global_config = config_lookup(&config_file,"proxy_global_config");
+    
+    if(NULL!=proxy_global_config){
+        int rsm;
+        if(config_setting_lookup_int(proxy_global_config,"rsm",&rsm)){
+            cur_node->rsm = rsm;
+        }
+        int output_check;
+        if(config_setting_lookup_int(proxy_global_config,"output_check",&output_check)){
+            cur_node->output_check = output_check;
+        }
+    }
 
     config_setting_t *proxy_config = NULL;
     proxy_config = config_lookup(&config_file,"proxy_config");
@@ -45,6 +57,26 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     config_setting_lookup_int(pro_ele,"sys_log",&cur_node->sys_log);
     config_setting_lookup_int(pro_ele,"stat_log",&cur_node->stat_log);
     config_setting_lookup_int(pro_ele,"req_log",&cur_node->req_log);
+
+    const char* peer_ipaddr=NULL;
+    int peer_port=-1;
+
+    if(!config_setting_lookup_string(pro_ele,"ip_address",&peer_ipaddr)){
+        err_log("PROXY : Cannot Find Current Node's IP Address.\n")
+        goto goto_config_error;
+    }
+//    err_log("PROXY : Current Node's Address Is %s.\n",peer_ipaddr);
+    if(!config_setting_lookup_int(pro_ele,"port",&peer_port)){
+        err_log("PROXY : Cannot Find Current Node's Port.\n")
+        goto goto_config_error;
+    }
+
+//    err_log("PROXY : Current Node's Port Is %u.\n",peer_port);
+
+    cur_node->sys_addr.s_addr.sin_port = htons(peer_port);
+    cur_node->sys_addr.s_addr.sin_family = AF_INET;
+    inet_pton(AF_INET,peer_ipaddr,&cur_node->sys_addr.s_addr.sin_addr);
+    cur_node->sys_addr.s_sock_len = sizeof(cur_node->sys_addr.s_addr);
 
     const char* db_name;
     if(!config_setting_lookup_string(pro_ele,"db_name",&db_name)){

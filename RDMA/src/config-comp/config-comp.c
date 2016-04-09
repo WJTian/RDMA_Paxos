@@ -98,32 +98,7 @@ int consensus_read_config(node* cur_node,const char* config_path){
 	}
 
 	cur_node->zoo_port = peer_port;
-	config_setting_t *server_config;
-	server_config = config_lookup(&config_file,"server_config");
-	if(NULL==server_config){
-		err_log("cannot find nodes settings \n");
-		goto goto_config_error;
-	}
-	config_setting_t *serv_ele = config_setting_get_elem(server_config,cur_node->node_id);
-	if(NULL==serv_ele){
-		err_log("cannot find current node's address\n");
-		goto goto_config_error;
-	}
 
-	const char* peer_ipaddr=NULL;
-	peer_port=-1;
-
-	if(!config_setting_lookup_string(serv_ele,"ip_address",&peer_ipaddr)){
-		goto goto_config_error;
-	}
-
-	if(!config_setting_lookup_int(serv_ele,"port",&peer_port)){
-		goto goto_config_error;
-	}
-
-	cur_node->my_address.sin_port = htons(peer_port);
-	cur_node->my_address.sin_family = AF_INET;
-	inet_pton(AF_INET,peer_ipaddr,&cur_node->my_address.sin_addr);
 	config_destroy(&config_file);
 
 	return 0;

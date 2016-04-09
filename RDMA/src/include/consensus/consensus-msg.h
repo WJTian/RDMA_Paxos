@@ -8,7 +8,6 @@ typedef struct accept_ack_t{
     node_id_t node_id;
 
     uint64_t hash;
-    int flag;
 }accept_ack;
 #define ACCEPT_ACK_SIZE (sizeof(accept_ack))
 

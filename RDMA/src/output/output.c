@@ -2,28 +2,45 @@
 
 #include "../include/output/crc64.h"
 
-struct output_handler_t* init_output()
+output_handler_t output_handler;
+
+void init_output()
 {
-	struct output_handler_t *output_handler = (struct output_handler_t*)malloc(sizeof(struct output_handler_t));
-	memset((void*)output_handler, 0, sizeof(struct output_handler_t));
-	output_handler->output_list = listCreate();
-	output_handler->count = 0;
-	output_handler->prev_offset = 0;
-	pthread_mutex_init(&output_handler->lock, NULL);
-	output_handler->hash = 0;
-	return output_handler;
+	output_handler.output_list = listCreate();
+	output_handler.count = 0;
+	output_handler.prev_offset = 0;
+	pthread_mutex_init(&output_handler.lock, NULL);
+	output_handler.hash = 0;
+
+	output_handler.hash_buffer_curr =0;
+	memset(output_handler.hash_buffer,0,sizeof(output_handler.hash_buffer));
+	return;
 }
 
-void store_output(const void *buf, ssize_t ret, struct output_handler_t* output_handler)
+static int min(int a, int b){
+	return a<b?a:b;
+}
+
+void store_output(const unsigned char *buff, ssize_t buff_size)
 {
-	const unsigned char *s = (const unsigned char *)buf;
-	output_handler->hash = crc64(output_handler->hash, s, ret);
-	if (output_handler->count % CHECK_PERIOD == 0)
-	{
-		uint64_t *new_hash = (uint64_t*)malloc(sizeof(uint64_t));
-		*new_hash = output_handler->hash;
-		listAddNodeTail(output_handler->output_list, (void*)new_hash); // Add a new node to the list, to tail, containing the specified 'value' pointer as value. On error, NULL is returned.
+	int push_size =0;
+	while (push_size < buff_size){
+		int left_space = HASH_BUFFER_SIZE - output_handler.hash_buffer_curr;
+		int wait_size = buff_size - push_size;
+		int actual_size = min(left_space,wait_size); 
+		unsigned char * dest_ptr = output_handler.hash_buffer+output_handler.hash_buffer_curr;
+		memcpy(dest_ptr,buff,actual_size);
+		output_handler.hash_buffer_curr+=actual_size;
+		left_space = HASH_BUFFER_SIZE - output_handler.hash_buffer_curr;
+		push_size+=actual_size;
+		if (0==left_space){
+			output_handler.hash = crc64(output_handler.hash,output_handler.hash_buffer,HASH_BUFFER_SIZE);
+			output_handler.hash_buffer_curr=0;
+			uint64_t *new_hash = (uint64_t*)malloc(sizeof(uint64_t));
+			*new_hash = output_handler.hash;
+			listAddNodeTail(output_handler.output_list, (void*)new_hash);
+			output_handler.count++;
+		}
 	}
-	output_handler->count++;
 	return;
 }

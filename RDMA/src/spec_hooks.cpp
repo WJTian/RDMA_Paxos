@@ -4,10 +4,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include "include/consensus/consensus.h"
-#include "include/proxy/proxy.h"
-#include "include/output/output.h"
-#include "include/rdma/dare.h"
+#include "include/rsm-interface.h"
 
 #define dprintf(fmt...)
 
@@ -36,9 +33,6 @@ void tern_init_func(int argc, char **argv, char **env)
 	uint32_t node_id = atoi(id);
 	proxy = NULL;
 	proxy = proxy_init(node_id, config_path, log_dir);
-
-	pthread_t rep_th;
-	pthread_create(&rep_th, NULL, &handle_accept_req, (void*)(proxy->con_node->consensus_comp));
 }
 
 typedef void (*fini_type)(void*);
@@ -102,7 +96,7 @@ extern "C" int __libc_start_main(
 
 	saved_fini_func = (fini_type)rtld_fini_func;
 
-	char* target = "redis";
+	const char* target = "redis";
 	if (NULL != strstr(argv[0], target))
 	{
 		ret = orig_func((void*)my_main, argc, (char**)(&args), (fnptr_type)tern_init_func, (fnptr_type)fini_func, rtld_fini_func, stack_end);
@@ -111,7 +105,33 @@ extern "C" int __libc_start_main(
 	}
 
 	return ret;
+}
 
+extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+	typedef int (*orig_accept_type)(int, sockaddr *, socklen_t *);
+	orig_accept_type orig_accept;
+	orig_accept = (orig_accept_type) dlsym(RTLD_NEXT, "accept");
+	int ret = orig_accept(socket, address, address_len);
+
+	struct stat sb;
+	fstat(ret, &sb);
+
+	if (proxy != NULL && (sb.st_mode & S_IFMT) == S_IFSOCK)
+	{
+		proxy_on_accept(ret, proxy);
+	}
+
+	return ret;
+}
+
+extern "C" int close(int fildes)
+{
+	typedef int (*orig_close_type)(int);
+	orig_close_type orig_close;
+	orig_close = (orig_close_type) dlsym(RTLD_NEXT, "close");
+	int ret = orig_close(fildes);
+	return ret;
 }
 
 extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
@@ -121,9 +141,12 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 	orig_recv = (orig_recv_type) dlsym(RTLD_NEXT, "recv");
 	ssize_t ret = orig_recv(sockfd, buf, len, flags);
 
-	if (proxy != NULL && proxy->con_node->zfd != sockfd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id)
+	struct stat sb;
+	fstat(sockfd, &sb);
+
+	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
 	{
-		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM, NULL);
+		client_side_on_read(proxy, buf, ret, NULL, sockfd);
 	}
 
 	return ret;
@@ -139,9 +162,9 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 	struct stat sb;
 	fstat(fd, &sb);
 
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd && proxy->con_node->cur_view.leader_id == proxy->con_node->node_id)
+	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
 	{
-		rsm_op(proxy->con_node->consensus_comp, buf, ret, CSM, NULL);
+		client_side_on_read(proxy, buf, ret, NULL, fd);
 	}
 
 	return ret;
@@ -157,21 +180,9 @@ extern "C" ssize_t write(int fd, const void *buf, size_t count)
 	struct stat sb;
 	fstat(fd, &sb);
 
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd)
+	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
 	{
-		pthread_mutex_lock(&proxy->con_node->consensus_comp->output_handler->lock);
-		store_output(buf, ret, proxy->con_node->consensus_comp->output_handler);
-		long output_idx = proxy->con_node->consensus_comp->output_handler->count;
-		pthread_mutex_unlock(&proxy->con_node->consensus_comp->output_handler->lock);
-		if (proxy->con_node->cur_view.leader_id == proxy->con_node->node_id && output_idx % CHECK_PERIOD == 0)
-		{
-			output_peer_t output_peers[MAX_SERVER_COUNT];
-			rsm_op(proxy->con_node->consensus_comp, &output_idx, sizeof(long), CHECK, output_peers);
-			if (output_idx != CHECK_PERIOD)
-			{
-				do_decision(output_peers, proxy->con_node->group_size);
-			}
-		}
+		proxy_on_check(fd, buf, ret, proxy);
 	}
 
 	return ret;
@@ -187,21 +198,9 @@ extern "C" ssize_t send(int fd, const void *buf, size_t len, int flags)
 	struct stat sb;
 	fstat(fd, &sb);
 
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL && proxy->con_node->zfd != fd)
+	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
 	{
-		pthread_mutex_lock(&proxy->con_node->consensus_comp->output_handler->lock);
-		store_output(buf, ret, proxy->con_node->consensus_comp->output_handler);
-		long output_idx = proxy->con_node->consensus_comp->output_handler->count;
-		pthread_mutex_unlock(&proxy->con_node->consensus_comp->output_handler->lock);
-		if (proxy->con_node->cur_view.leader_id == proxy->con_node->node_id && output_idx % CHECK_PERIOD == 0)
-		{
-			output_peer_t output_peers[MAX_SERVER_COUNT];
-			rsm_op(proxy->con_node->consensus_comp, &output_idx, sizeof(long), CHECK, output_peers);
-			if (output_idx != CHECK_PERIOD)
-			{
-				do_decision(output_peers, proxy->con_node->group_size);
-			}
-		}
+		proxy_on_check(fd, buf, ret, proxy);
 	}
 
 	return ret;

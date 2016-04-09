@@ -1,19 +1,36 @@
-#define _GNU_SOURCE
-
 #include "../include/consensus/consensus.h"
 #include "../include/consensus/consensus-msg.h"
 
 #include "../include/rdma/dare_ibv_rc.h"
 #include "../include/rdma/dare_server.h"
 
-#include <netinet/tcp.h>
-#include <dlfcn.h>
-
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
-consensus_component* init_consensus_comp(struct node_t* node,struct sockaddr_in my_address,pthread_mutex_t* lock,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
-    view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,void* arg){
+typedef struct consensus_component_t{ con_role my_role;
+    uint32_t node_id;
+
+    uint32_t group_size;
+    struct node_t* my_node;
+
+    FILE* sys_log_file;
+    int sys_log;
+    int stat_log;
+
+    view* cur_view;
+    view_stamp* highest_seen_vs; 
+    view_stamp* highest_to_commit_vs;
+    view_stamp* highest_committed_vs;
+
+    db* db_ptr;
+    
+    pthread_mutex_t* lock;
+    user_cb ucb;
+    void* up_para;
+}consensus_component;
+
+consensus_component* init_consensus_comp(struct node_t* node,pthread_mutex_t* lock,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
+    view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,void* arg){
     consensus_component* comp = (consensus_component*)malloc(sizeof(consensus_component));
     memset(comp,0,sizeof(consensus_component));
 
@@ -31,6 +48,8 @@ consensus_component* init_consensus_comp(struct node_t* node,struct sockaddr_in 
         }else{
             comp->my_role = SECONDARY;
         }
+        comp->ucb = u_cb;
+        comp->up_para = arg;
         comp->highest_seen_vs = highest;
         comp->highest_seen_vs->view_id = 1;
         comp->highest_seen_vs->req_id = 0;
@@ -40,10 +59,9 @@ consensus_component* init_consensus_comp(struct node_t* node,struct sockaddr_in 
         comp->highest_to_commit_vs = to_commit;
         comp->highest_to_commit_vs->view_id = 1;
         comp->highest_to_commit_vs->req_id = 0;
-        comp->my_address = my_address;
         comp->lock = lock;
 
-        comp->output_handler = init_output();
+        init_output();
 
         goto consensus_init_exit;
 
@@ -68,15 +86,15 @@ static int reached_quorum(uint64_t bit_map, int group_size){
     }
 }
 
-int rsm_op(struct consensus_component_t* comp, void* data, ssize_t data_size, uint8_t type, output_peer_t *output_peers)
+static int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_size, void* data, output_peer_t *output_peers)
 {
     dare_log_entry_t *entry;
-    if (type == CSM)
+    if (output_peers == NULL)
     {
         pthread_mutex_lock(comp->lock);
         view_stamp next = get_next_view_stamp(comp);
+        SYS_LOG(comp, "Leader trying to reach a consensus on view id %"PRIu32", req id %"PRIu32"\n", next.view_id, next.req_id);
 
-        /* record the data persistently */
         db_key_type record_no = vstol(&next);
         uint64_t bit_map = (1<<comp->node_id);
         if(store_record(comp->db_ptr, sizeof(record_no), &record_no, data_size, data))
@@ -86,7 +104,7 @@ int rsm_op(struct consensus_component_t* comp, void* data, ssize_t data_size, ui
         }
 
         comp->highest_seen_vs->req_id = comp->highest_seen_vs->req_id + 1;
-        entry = log_append_entry(SRV_DATA->log, data_size, data, &next, comp->node_id, comp->highest_committed_vs, type);
+        entry = log_append_entry(SRV_DATA->log, data_size, data, &next, comp->node_id, comp->highest_committed_vs, CSM);
 
         uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
         rem_mem_t rm;
@@ -98,7 +116,6 @@ int rsm_op(struct consensus_component_t* comp, void* data, ssize_t data_size, ui
             if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
                 continue;
 
-            /* Set remote offset */
             rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
             rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
@@ -117,18 +134,19 @@ recheck:
             //TODO: do we need the lock here?
             while (entry->msg_vs.req_id > comp->highest_committed_vs->req_id + 1);
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
+            SYS_LOG(comp, "Leader finished the consensus on view id %"PRIu32", req id %"PRIu32"\n", next.view_id, next.req_id);
         }else{
             goto recheck;
         }
     }
 
-    if (type == CHECK)
+    if (output_peers != NULL)
     {
         pthread_mutex_lock(comp->lock);
 
         long output_idx = *(long*)data / CHECK_PERIOD - 1;
-        entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type);
-        listNode *node = listIndex(comp->output_handler->output_list, output_idx);
+        entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, OUTPUT);
+        listNode *node = listIndex(output_handler.output_list, output_idx);
         entry->ack[comp->node_id].hash = *(uint64_t*)listNodeValue(node);
         entry->ack[comp->node_id].node_id = comp->node_id;
 
@@ -147,8 +165,8 @@ recheck:
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
         }
-        dare_log_entry_t *prev_entry = log_get_entry(SRV_DATA->log, &comp->output_handler->prev_offset);
-        comp->output_handler->prev_offset = SRV_DATA->log->tail;
+        dare_log_entry_t *prev_entry = log_get_entry(SRV_DATA->log, &output_handler.prev_offset);
+        output_handler.prev_offset = SRV_DATA->log->tail;
         pthread_mutex_unlock(comp->lock);
 
         if (output_idx != 0)
@@ -166,32 +184,12 @@ handle_submit_req_exit:
     return 0;
 }
 
-static int anetKeepAlive(char *err, int fd, int interval)
-{
-    int val = 1;
-
-    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
-    {
-        fprintf(stderr, "setsockopt SO_KEEPALIVE: %s", strerror(errno));
+int consensus_submit_request(struct consensus_component_t* comp,size_t data_size,void* data,output_peer_t *output_peers){
+    if(LEADER==comp->my_role){
+       return leader_handle_submit_req(comp,data_size,data,output_peers);
+    }else{
+        return 0;
     }
-
-    val = interval;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0) {
-        fprintf(stderr, "setsockopt TCP_KEEPIDLE: %s\n", strerror(errno));
-    }
-
-    val = interval/3;
-    if (val == 0) val = 1;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0) {
-        fprintf(stderr, "setsockopt TCP_KEEPINTVL: %s\n", strerror(errno));
-    }
-
-    val = 3;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0) {
-        fprintf(stderr, "setsockopt TCP_KEEPCNT: %s\n", strerror(errno));
-    }
-
-    return 0;
 }
 
 void *handle_accept_req(void* arg)
@@ -206,12 +204,6 @@ void *handle_accept_req(void* arg)
     void* retrieve_data = NULL;
     
     dare_log_entry_t* entry;
-
-    int idx = 0, sock;
-
-    typedef ssize_t (*orig_write_type)(int, void *, size_t);
-    orig_write_type orig_write;
-    orig_write = (orig_write_type) dlsym(RTLD_NEXT, "write");
 
     for (;;)
     {
@@ -257,30 +249,19 @@ void *handle_accept_req(void* arg)
 
                 if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
                 {
-                    if (idx == 0)
-                    {
-                        sock = socket(AF_INET, SOCK_STREAM, 0);
-                        connect(sock, (struct sockaddr*)&comp->my_address, sizeof(struct sockaddr_in));
-                        int enable = 1;
-                        if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
-                            printf("TCP_NODELAY SETTING ERROR!\n");
-                        anetKeepAlive(NULL, sock, 15);
-
-                        idx = 1;
-                    }
                     start = vstol(comp->highest_committed_vs)+1;
                     end = vstol(&entry->req_canbe_exed);
                     for(index = start; index <= end; index++)
                     {
                         retrieve_record(comp->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
-                        orig_write(sock, retrieve_data, data_size);
+                        comp->ucb(data_size,retrieve_data,comp->up_para);
                     }
                     *(comp->highest_committed_vs) = entry->req_canbe_exed;
                 }
             }
-            if (entry->type == CHECK)
+            if (entry->type == OUTPUT)
             {
-                listNode *node = listIndex(comp->output_handler->output_list, *(long*)entry->data); // Return the element at the specified zero-based index where 0 is the head, 1 is the element next to head and so on.
+                listNode *node = listIndex(output_handler.output_list, *(long*)entry->data); // Return the element at the specified zero-based index where 0 is the head, 1 is the element next to head and so on.
 
                 SRV_DATA->log->tail = SRV_DATA->log->end;
                 SRV_DATA->log->end += log_entry_len(entry);

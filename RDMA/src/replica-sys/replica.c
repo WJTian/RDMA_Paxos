@@ -1,4 +1,3 @@
-#include "../include/proxy/proxy.h"
 #include "../include/util/common-header.h"
 #include "../include/replica-sys/node.h"
 #include "../include/config-comp/config-comp.h"
@@ -152,7 +151,7 @@ void zoo_wget_children_watcher(zhandle_t *wzh, int type, int state, const char *
         struct watcherContext *watcherPara = (struct watcherContext*)watcherCtx;
         // block the threads
         pthread_mutex_lock(watcherPara->lock);
-        rc = zoo_wget_children(zh, "/election", zoo_wget_children_watcher, watcherCtx, NULL);
+        rc = zoo_wget_children(wzh, "/election", zoo_wget_children_watcher, watcherCtx, NULL);
         if (rc)
         {
             fprintf(stderr, "Error %d for zoo_wget_children\n", rc);
@@ -162,7 +161,7 @@ void zoo_wget_children_watcher(zhandle_t *wzh, int type, int state, const char *
     }
 }
 
-int start_zookeeper(view* cur_view, int *zfd, pthread_mutex_t *lock)
+int start_zookeeper(view* cur_view, int *zoo_fd, pthread_mutex_t *lock)
 {
 	int rc;
 	char zoo_host_port[32];
@@ -173,7 +172,7 @@ int start_zookeeper(view* cur_view, int *zfd, pthread_mutex_t *lock)
     int interest, fd;
     struct timeval tv;
     zookeeper_interest(zh, &fd, &interest, &tv);
-    *zfd = fd;
+    *zoo_fd = fd;
 
     char path_buffer[512];
     rc = zoo_create(zh, "/election/guid-n_", NULL, -1, &ZOO_OPEN_ACL_UNSAFE, ZOO_SEQUENCE|ZOO_EPHEMERAL, path_buffer, 512);
@@ -198,7 +197,7 @@ int start_zookeeper(view* cur_view, int *zfd, pthread_mutex_t *lock)
     return 0;
 }
 
-int initialize_node(node* my_node,const char* log_path, void* db_ptr,void* arg){
+int initialize_node(node* my_node,list* excluded_fd,const char* log_path, void (*user_cb)(size_t data_size,void* data,void* arg), void* db_ptr,void* arg){
 
     int flag = 1;
 
@@ -219,7 +218,10 @@ int initialize_node(node* my_node,const char* log_path, void* db_ptr,void* arg){
     my_node->cur_view.leader_id = 9999;
 
     zoo_port = my_node->zoo_port;
-    start_zookeeper(&my_node->cur_view, &my_node->zfd, &my_node->lock);
+    int *zoo_fd = (int*)malloc(sizeof(int));
+    start_zookeeper(&my_node->cur_view, zoo_fd, &my_node->lock);
+    
+    listAddNodeTail(excluded_fd, (void*)zoo_fd);
 
     int build_log_ret = 0;
     if(log_path==NULL){
@@ -248,14 +250,16 @@ int initialize_node(node* my_node,const char* log_path, void* db_ptr,void* arg){
 
     my_node->consensus_comp = NULL;
 
-    my_node->consensus_comp = init_consensus_comp(my_node,my_node->my_address,&my_node->lock,
+    my_node->consensus_comp = init_consensus_comp(my_node,&my_node->lock,
             my_node->node_id,my_node->sys_log_file,my_node->sys_log,
             my_node->stat_log,my_node->db_name,db_ptr,my_node->group_size,
             &my_node->cur_view,&my_node->highest_to_commit,&my_node->highest_committed,
-            &my_node->highest_seen,arg);
+            &my_node->highest_seen,user_cb,arg);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
     }
+
+    pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp);
     
     flag = 0;
 initialize_node_exit:
@@ -263,7 +267,23 @@ initialize_node_exit:
     return flag;
 }
 
-node* system_initialize(node_id_t node_id,const char* config_path, const char* log_path, void* db_ptr,void* arg){
+void rsm_op(node* my_node, size_t ret, void *buf, output_peer_t* output_peers)
+{
+    consensus_submit_request(my_node->consensus_comp,ret,buf,output_peers);
+    return;
+}
+
+uint32_t get_leader_id(node* my_node)
+{
+    return my_node->cur_view.leader_id;
+}
+
+uint32_t get_group_size(node* my_node)
+{
+    return my_node->group_size;
+}
+
+node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(size_t data_size,void* data,void* arg), void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
@@ -286,7 +306,7 @@ node* system_initialize(node_id_t node_id,const char* config_path, const char* l
     }
 
 
-    if(initialize_node(my_node,log_path,db_ptr,arg)){
+    if(initialize_node(my_node,excluded_fd,log_path,user_cb,db_ptr,arg)){
         err_log("CONSENSUS MODULE : Network Layer Initialization Failed.\n");
         goto exit_error;
     }

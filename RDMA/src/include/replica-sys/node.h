@@ -38,7 +38,6 @@ typedef struct node_t{
 	FILE* sys_log_file;
 	int zoo_port;
 
-	pthread_mutex_t lock;
 	pthread_t rep_thread;
 }node;
 

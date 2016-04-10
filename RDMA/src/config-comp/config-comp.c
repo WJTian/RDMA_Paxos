@@ -29,7 +29,7 @@ int consensus_read_config(node* cur_node,const char* config_path){
     
     if(NULL!=consensus_global_config){
         int measure_latency;
-        if(config_setting_lookup_int64(consensus_global_config,"measure_latency",&measure_latency)){
+        if(config_setting_lookup_int(consensus_global_config,"measure_latency",&measure_latency)){
             cur_node->config.measure_latency = measure_latency;
         }
     }

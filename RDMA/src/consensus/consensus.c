@@ -28,12 +28,12 @@ typedef struct consensus_component_t{ con_role my_role;
 
     db* db_ptr;
     
-    pthread_mutex_t* lock;
+    pthread_mutex_t lock;
     user_cb ucb;
     void* up_para;
 }consensus_component;
 
-consensus_component* init_consensus_comp(struct node_t* node,int measure_latency,pthread_mutex_t* lock,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
+consensus_component* init_consensus_comp(struct node_t* node,int measure_latency,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
     view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,void* arg){
     consensus_component* comp = (consensus_component*)malloc(sizeof(consensus_component));
     memset(comp,0,sizeof(consensus_component));
@@ -64,8 +64,9 @@ consensus_component* init_consensus_comp(struct node_t* node,int measure_latency
         comp->highest_to_commit_vs = to_commit;
         comp->highest_to_commit_vs->view_id = 1;
         comp->highest_to_commit_vs->req_id = 0;
-        comp->lock = lock;
 
+        pthread_mutex_init(&comp->lock, NULL);
+        
         init_output();
 
         goto consensus_init_exit;
@@ -96,8 +97,8 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
     dare_log_entry_t *entry;
     if (output_peers == NULL)
     {
+        pthread_mutex_lock(&comp->lock);
         struct timespec start_time, end_time;
-        pthread_mutex_lock(comp->lock);
         if (comp->measure_latency)
         {
             clock_gettime(CLOCK_MONOTONIC, &start_time);
@@ -131,7 +132,7 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
         }
-        pthread_mutex_unlock(comp->lock);
+        pthread_mutex_unlock(&comp->lock);
 recheck:
         for (i = 0; i < MAX_SERVER_COUNT; i++) {
             if (entry->ack[i].msg_vs.view_id == next.view_id && entry->ack[i].msg_vs.req_id == next.req_id)
@@ -157,7 +158,7 @@ recheck:
 
     if (output_peers != NULL)
     {
-        pthread_mutex_lock(comp->lock);
+        pthread_mutex_lock(&comp->lock);
 
         long output_idx = *(long*)data / CHECK_PERIOD - 1;
         entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, OUTPUT);
@@ -182,7 +183,7 @@ recheck:
         }
         dare_log_entry_t *prev_entry = log_get_entry(SRV_DATA->log, &output_handler.prev_offset);
         output_handler.prev_offset = SRV_DATA->log->tail;
-        pthread_mutex_unlock(comp->lock);
+        pthread_mutex_unlock(&comp->lock);
 
         if (output_idx != 0)
         {

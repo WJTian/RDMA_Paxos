@@ -96,11 +96,11 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
     dare_log_entry_t *entry;
     if (output_peers == NULL)
     {
+        struct timespec start_time, end_time;
         pthread_mutex_lock(comp->lock);
         if (comp->measure_latency)
         {
-            struct timespec end;
-            clock_gettime(CLOCK_MONOTONIC, &start);
+            clock_gettime(CLOCK_MONOTONIC, &start_time);
         }
 
         view_stamp next = get_next_view_stamp(comp);
@@ -146,9 +146,8 @@ recheck:
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
             if (comp->measure_latency)
             {
-                struct timespec end;
-                clock_gettime(CLOCK_MONOTONIC, &end);
-                uint64_t diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
+                clock_gettime(CLOCK_MONOTONIC, &end_time);
+                uint64_t diff = BILLION * (end_time.tv_sec - start_time.tv_sec) + end_time.tv_nsec - start_time.tv_nsec;
                 SYS_LOG(comp, "view id %"PRIu32", req id %"PRIu32": %llu nanoseconds\n", next.view_id, next.req_id, (long long unsigned int) diff);
             }
         }else{

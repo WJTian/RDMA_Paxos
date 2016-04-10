@@ -11,7 +11,7 @@ typedef struct peer_t{
 }peer;
 
 typedef struct node_config_t{
-	int latency_measure;
+	int measure_latency;
 }node_config;
 
 typedef void (*user_cb)(size_t data_size,void* data,void* arg);

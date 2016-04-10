@@ -132,7 +132,7 @@ extern "C" int close(int fildes)
 	
 	if (proxy != NULL && (sb.st_mode & S_IFMT) == S_IFSOCK)
 	{
-		proxy_on_close(fildes);
+		proxy_on_close(fildes, proxy);
 	}
 
 	typedef int (*orig_close_type)(int);

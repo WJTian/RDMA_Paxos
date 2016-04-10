@@ -55,6 +55,7 @@ typedef struct proxy_node_t{
 typedef enum proxy_action_t{
     P_CONNECT=0,
     P_SEND=1,
+    P_CLOSE=2,
 }proxy_action;
 
 typedef struct proxy_msg_header_t{

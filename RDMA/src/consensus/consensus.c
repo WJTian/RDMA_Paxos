@@ -228,6 +228,12 @@ void *handle_accept_req(void* arg)
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
             if (entry->type == CSM)//TODO atmoic opeartion
             {
+                struct timespec start_time, end_time;
+                if (comp->measure_latency)
+                {
+                    clock_gettime(CLOCK_MONOTONIC, &start_time);
+                }
+
                 if(entry->msg_vs.view_id < comp->cur_view->view_id){
                 // TODO
                 //goto reloop;
@@ -273,6 +279,12 @@ void *handle_accept_req(void* arg)
                         comp->ucb(data_size,retrieve_data,comp->up_para);
                     }
                     *(comp->highest_committed_vs) = entry->req_canbe_exed;
+                }
+                if (comp->measure_latency)
+                {
+                    clock_gettime(CLOCK_MONOTONIC, &end_time);
+                    uint64_t diff = BILLION * (end_time.tv_sec - start_time.tv_sec) + end_time.tv_nsec - start_time.tv_nsec;
+                    SYS_LOG(comp, "view id %"PRIu32", req id %"PRIu32": %llu nanoseconds\n", entry->msg_vs.view_id, entry->msg_vs.req_id, (long long unsigned int) diff);
                 }
             }
             if (entry->type == OUTPUT)

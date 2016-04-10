@@ -18,9 +18,6 @@
 }while(0);
 
 #define rec_log(out,args...) do { \
-    struct timespec tv; \
-    clock_gettime(CLOCK_MONOTONIC,&tv); \
-    fprintf((out),"%lu.%ld:",tv.tv_sec,tv.tv_nsec); \
     fprintf((out),args); \
     fflush(out); \
 }while(0);

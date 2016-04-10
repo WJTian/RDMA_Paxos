@@ -150,7 +150,9 @@ int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port)
     zookeeper_interest(zh, &fd, &interest, &tv);
     *zoo_fd = fd;
 
-    rc = zoo_create(zh, "/election/guid-n_", (const char *)&SRV_DATA->config.idx, 1, &ZOO_OPEN_ACL_UNSAFE, ZOO_SEQUENCE|ZOO_EPHEMERAL, NULL, 0);
+    char str[6];
+    sprintf(str, "%"PRIu32"", SRV_DATA->config.idx);
+    rc = zoo_create(zh, "/election/guid-n_", str, strlen(str), &ZOO_OPEN_ACL_UNSAFE, ZOO_SEQUENCE|ZOO_EPHEMERAL, NULL, 0);
     if (rc)
     {
         fprintf(stderr, "Error %d for zoo_create\n", rc);

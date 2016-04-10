@@ -4,7 +4,6 @@
 
 #include "../include/rdma/dare.h"
 
-#include <aio.h>
 #include <fcntl.h>
 #include <netinet/tcp.h>
 #include <sys/stat.h>
@@ -44,7 +43,7 @@ void proxy_on_close(int fd, proxy_node* proxy)
         cl_msg->header.action = P_CLOSE;
         cl_msg->header.connection_id = fd;
 
-        rsm_op(proxy->con_node, PROXY_CONNECT_MSG_SIZE, cl_msg, NULL);
+        rsm_op(proxy->con_node, PROXY_CLOSE_MSG_SIZE, cl_msg, NULL);
         free(cl_msg);
     }
 
@@ -75,17 +74,17 @@ void proxy_on_check(int fd, const void* buf, size_t ret, proxy_node* proxy)
     }
 }
 
-static int anetSetBlock(int fd, int non_block) {
+static int SetBlocking(int fd, int blocking) {
     int flags;
 
     if ((flags = fcntl(fd, F_GETFL)) == -1) {
         fprintf(stderr, "fcntl(F_GETFL): %s", strerror(errno));
     }
 
-    if (non_block)
-        flags |= O_NONBLOCK;
-    else
+    if (blocking)
         flags &= ~O_NONBLOCK;
+    else
+        flags |= O_NONBLOCK;
 
     if (fcntl(fd, F_SETFL, flags) == -1) {
         fprintf(stderr, "fcntl(F_SETFL,O_NONBLOCK): %s", strerror(errno));
@@ -93,29 +92,12 @@ static int anetSetBlock(int fd, int non_block) {
     return 0;
 }
 
-static int anetKeepAlive(char *err, int fd, int interval)
-{
+static int KeepAlive(int fd) {
     int val = 1;
 
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
     {
         fprintf(stderr, "setsockopt SO_KEEPALIVE: %s", strerror(errno));
-    }
-
-    val = interval;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0) {
-        fprintf(stderr, "setsockopt TCP_KEEPIDLE: %s\n", strerror(errno));
-    }
-
-    val = interval/3;
-    if (val == 0) val = 1;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0) {
-        fprintf(stderr, "setsockopt TCP_KEEPINTVL: %s\n", strerror(errno));
-    }
-
-    val = 3;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0) {
-        fprintf(stderr, "setsockopt TCP_KEEPCNT: %s\n", strerror(errno));
     }
 
     return 0;
@@ -171,6 +153,7 @@ static void do_action_connect(size_t data_size,void* data,void* arg){
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
         *fd = socket(AF_INET, SOCK_STREAM, 0);
+        SetBlocking(*fd, 0);
         listAddNodeTail(proxy->excluded_fd, (void*)fd);
 
         connect(*fd, (struct sockaddr*)&proxy->sys_addr.s_addr,proxy->sys_addr.s_sock_len);
@@ -180,7 +163,7 @@ static void do_action_connect(size_t data_size,void* data,void* arg){
         int enable = 1;
         if(setsockopt(*fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
             printf("TCP_NODELAY SETTING ERROR!\n");
-        anetKeepAlive(NULL, *fd, 15);
+        KeepAlive(*fd);
     }
     return;
 }
@@ -199,12 +182,7 @@ static void do_action_send(size_t data_size,void* data,void* arg){
             goto do_action_send_exit;
         }else{
             SYS_LOG(proxy, "Proxy sends request to the real server.\n");
-            struct aiocb my_aio;
-            bzero((char*)&my_aio, sizeof(struct aiocb));
-            my_aio.aio_fildes = *ret->p_s;
-            my_aio.aio_nbytes = msg->data_size;
-            my_aio.aio_buf = msg->data;
-            aio_write(&my_aio);
+            write(*ret->p_s, msg->data, msg->data_size);
         }
     }
 do_action_send_exit:

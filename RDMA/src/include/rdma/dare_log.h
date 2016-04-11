@@ -8,11 +8,12 @@
 
 struct dare_log_entry_t{
     accept_ack ack[MAX_SERVER_COUNT];
-    uint8_t  type;
     view_stamp msg_vs;
     view_stamp req_canbe_exed;
     node_id_t node_id;
     size_t data_size;
+    uint8_t type;
+    int clt_id;
     char data[0];
 };
 typedef struct dare_log_entry_t dare_log_entry_t;
@@ -94,13 +95,14 @@ static dare_log_entry_t* log_get_entry(dare_log_t* log, uint64_t *offset)
     return (dare_log_entry_t*)(log->entries + *offset); 
 }
 
-static dare_log_entry_t* log_append_entry(dare_log_t* log, size_t data_size, void* data, view_stamp* vs, uint32_t node_id, view_stamp *highest_committed_vs, uint8_t type)
+static dare_log_entry_t* log_append_entry(dare_log_t* log, size_t data_size, void* data, view_stamp* vs, uint32_t node_id, view_stamp *highest_committed_vs, uint8_t type, int clt_id)
 {   
     /* Create new entry */
     dare_log_entry_t *entry = log_add_new_entry(log);
 
     entry->node_id = node_id;
     entry->type = type;
+    entry->clt_id = clt_id;
     entry->data_size = data_size;
 
     if (!log_fit_entry_header(log, log->end)) {
@@ -114,7 +116,8 @@ static dare_log_entry_t* log_append_entry(dare_log_t* log, size_t data_size, voi
         entry->req_canbe_exed.req_id = highest_committed_vs->req_id;
     }
 
-    memcpy(entry->data,data,data_size);
+    if (data != NULL)
+        memcpy(entry->data,data,data_size);
     
     log->tail = log->end;
 

@@ -237,9 +237,9 @@ initialize_node_exit:
     return flag;
 }
 
-void rsm_op(node* my_node, size_t ret, void *buf, output_peer_t* output_peers)
+void rsm_op(node* my_node, size_t ret, void *buf, output_peer_t* output_peers, uint8_t type, int clt_id)
 {
-    consensus_submit_request(my_node->consensus_comp,ret,buf,output_peers);
+    consensus_submit_request(my_node->consensus_comp,ret,buf,output_peers, type, clt_id);
     return;
 }
 

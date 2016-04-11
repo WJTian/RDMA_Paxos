@@ -5,9 +5,6 @@
 
 #include "../output/output.h"
 
-#define CSM      1
-#define OUTPUT   2
-
 typedef uint64_t db_key_type;
 struct node_t;
 struct consensus_component_t;
@@ -23,7 +20,7 @@ struct consensus_component_t* init_consensus_comp(struct node_t*,int,uint32_t,FI
         const char*,void*,int,
         view*,view_stamp*,view_stamp*,view_stamp*,user_cb,void*);
 
-int consensus_submit_request(struct consensus_component_t*,size_t,void*,output_peer_t*);
+int consensus_submit_request(struct consensus_component_t*,size_t,void*,output_peer_t*,uint8_t type,int clt_id);
 
 void *handle_accept_req(void* arg);
 

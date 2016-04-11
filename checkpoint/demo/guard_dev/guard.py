@@ -41,6 +41,7 @@ from wsgiref.simple_server import make_server
 from cgi import parse_qs, escape
 import SocketServer
 from multiprocessing import Process
+import subprocess
 import time
 import sys
 import os
@@ -99,17 +100,21 @@ def not_found(environ, start_response):
 	start_response('404 NOT FOUND', [('Content-Type', 'text/plain')])
 	return ['Not Found']
 
-def outer_checkpoint(environ, start_response):
-	start_response('200 OK',[('Content-Type', 'text/html')])
+def outer_parse(environ):
 	parameters = parse_qs(environ.get('QUERY_STRING', ''))
-	node_id = escape(parameters['node_id'][0])
-	round_id = escape(parameters['round_id'][0])
 	try:
+		node_id = escape(parameters['node_id'][0])
+		round_id = escape(parameters['round_id'][0])
 		node_id = int(node_id)
 		round_id = int(round_id)
+		return (node_id,round_id)
 	except Exception as e:
 		print "[outer_checkpoint] error: %s"%(str(e))
-		return ['restore error']
+		return (-1,-1)
+
+def outer_checkpoint(environ, start_response):
+	start_response('200 OK',[('Content-Type', 'text/html')])
+	node_id, round_id = outer_parse(environ)
 	print "[outer_checkpoint] node_id:%d, round_id:%d"%(node_id,round_id)
 	if SELF_ID == node_id:
 		inner_checkpoint(node_id,round_id)
@@ -119,6 +124,12 @@ def outer_checkpoint(environ, start_response):
 
 def outer_restore(environ, start_response):
 	start_response('200 OK',[('Content-Type', 'text/html')])
+	node_id, round_id = outer_parse(environ)
+	print "[outer_restore] node_id:%d, round_id:%d"%(node_id,round_id)
+	if SELF_ID == node_id:
+		inner_restore(node_id,round_id)
+	else:
+		print "[outer_checkpoint] access deny, id is invalid SELF_ID:%d, node_id:%d"%(SELF_ID,node_id)
 	return ['restore ok']
 
 # The implementation is based on http://lucumr.pocoo.org/2007/5/21/getting-started-with-wsgi/
@@ -141,11 +152,20 @@ def application(environ, start_response):
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
 	# mkdir dump
+	try:
+		os.mkdir("dump")
+	except Exception as e:
+		pass
 	cmd="/sbin/criu dump -v4 -D ./dump -t %d"%(AIM_PID)
+	print "[inner_checkpoint]cmd: %s"%(cmd)
+	subprocess.call(cmd,shell=True)
 	return
 
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring  at machine %d, at round %d"%(node_id,round_id)
+	cmd="/sbin/criu restore -v4 -d -D ./dump"
+	print "[inner_restore]cmd: %s"%(cmd)
+	subprocess.call(cmd,shell=True)
 	return 
 
 def inner_service(cmd,node_id,round_id):

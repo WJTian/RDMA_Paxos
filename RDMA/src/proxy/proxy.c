@@ -20,11 +20,7 @@ void proxy_on_accept(int fd, proxy_node* proxy)
         new_conn->proxy = proxy;
         MY_HASH_SET(new_conn,proxy->hash_map);
 
-        proxy_connect_msg* co_msg = (proxy_connect_msg*)malloc(sizeof(proxy_connect_msg));
-        co_msg->header.action = P_CONNECT;
-        co_msg->header.connection_id = fd;
-        rsm_op(proxy->con_node, PROXY_CONNECT_MSG_SIZE, co_msg, NULL);
-        free(co_msg);
+        rsm_op(proxy->con_node, 0, NULL, NULL, P_CONNECT, fd);
     }
 
     return;
@@ -39,12 +35,7 @@ void proxy_on_close(int fd, proxy_node* proxy)
         MY_HASH_GET(&fd,proxy->hash_map,ret);
         ret->key = -1;
 
-        proxy_close_msg* cl_msg = (proxy_close_msg*)malloc(sizeof(proxy_close_msg));
-        cl_msg->header.action = P_CLOSE;
-        cl_msg->header.connection_id = fd;
-
-        rsm_op(proxy->con_node, PROXY_CLOSE_MSG_SIZE, cl_msg, NULL);
-        free(cl_msg);
+        rsm_op(proxy->con_node, 0, NULL, NULL, P_CLOSE, fd);
     }
 
     return;
@@ -107,23 +98,15 @@ void client_side_on_read(proxy_node* proxy, void *buf, size_t ret, output_peer_t
     uint32_t leader_id = get_leader_id(proxy->con_node);
     if (listSearchKey(proxy->excluded_fd, &fd) == NULL && proxy->rsm != 0 && proxy->node_id == leader_id)
     {
-        proxy_send_msg* send_msg = (proxy_send_msg*)malloc(ret + sizeof(proxy_send_msg));
-
-        send_msg->header.action = P_SEND;
-        send_msg->header.connection_id = fd;
-        send_msg->data_size = ret;
-        memcpy(send_msg->data,buf,ret);
-        rsm_op(proxy->con_node, PROXY_SEND_MSG_SIZE(send_msg), send_msg, output_peers);
-        free(send_msg);
+        rsm_op(proxy->con_node, ret, buf, output_peers, P_SEND, fd);
     }
     return;
 };
 
-static void do_action_close(size_t data_size,void* data,void* arg){
+static void do_action_close(int clt_id,void* arg){
     proxy_node* proxy = arg;
-    proxy_close_msg* msg = data;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&msg->header.connection_id,proxy->hash_map,ret);
+    MY_HASH_GET(&clt_id,proxy->hash_map,ret);
     if(NULL==ret){
         goto do_action_close_exit;
     }else{      
@@ -137,16 +120,15 @@ do_action_close_exit:
     return;
 }
 
-static void do_action_connect(size_t data_size,void* data,void* arg){
+static void do_action_connect(int clt_id,void* arg){
     
     proxy_node* proxy = arg;
     socket_pair* ret = NULL;
-    proxy_msg_header* header = data;
-    MY_HASH_GET(&header->connection_id,proxy->hash_map,ret);
+    MY_HASH_GET(&clt_id,proxy->hash_map,ret);
     if(NULL==ret){
         ret = malloc(sizeof(socket_pair));
         memset(ret,0,sizeof(socket_pair));
-        ret->key = header->connection_id;
+        ret->key = clt_id;
         ret->proxy = proxy;
         MY_HASH_SET(ret,proxy->hash_map);
     }
@@ -170,10 +152,9 @@ static void do_action_connect(size_t data_size,void* data,void* arg){
 
 static void do_action_send(size_t data_size,void* data,void* arg){
     proxy_node* proxy = arg;
-
-    proxy_send_msg* msg = data;
+    request_record *record_data = data;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&msg->header.connection_id,proxy->hash_map,ret);
+    MY_HASH_GET(&record_data->clt_id,proxy->hash_map,ret);
 
     if(NULL==ret){
         goto do_action_send_exit;
@@ -182,7 +163,7 @@ static void do_action_send(size_t data_size,void* data,void* arg){
             goto do_action_send_exit;
         }else{
             SYS_LOG(proxy, "Proxy sends request to the real server.\n");
-            write(*ret->p_s, msg->data, msg->data_size);
+            write(*ret->p_s, record_data->data, record_data->data_size);
         }
     }
 do_action_send_exit:
@@ -192,17 +173,17 @@ do_action_send_exit:
 static void update_state(size_t data_size,void* data,void* arg){
     proxy_node* proxy = arg;
 
-    proxy_msg_header* header = data;
+    request_record *record_data = (request_record*)data;
     FILE* output = NULL;
     if(proxy->req_log){
         output = proxy->req_log_file;
     }
-    switch(header->action){
+    switch(record_data->type){
         case P_CONNECT:
             if(output!=NULL){
                 fprintf(output,"Operation: Connects.\n");
             }
-            do_action_connect(data_size,data,arg);
+            do_action_connect(record_data->clt_id,arg);
             break;
         case P_SEND:
             if(output!=NULL){
@@ -214,7 +195,7 @@ static void update_state(size_t data_size,void* data,void* arg){
             if(output!=NULL){
                 fprintf(output,"Operation: Closes.\n");
             }
-            do_action_close(data_size,data,arg);
+            do_action_close(record_data->clt_id,arg);
             break;
         default:
             break;

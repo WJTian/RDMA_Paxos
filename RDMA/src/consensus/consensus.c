@@ -9,6 +9,13 @@
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
+typedef enum request_type_t{
+	P_CONNECT=1,
+	P_SEND=2,
+	P_CLOSE=3,
+	P_OUTPUT=4,
+}request_type;
+
 typedef struct consensus_component_t{ con_role my_role;
     uint32_t node_id;
 
@@ -92,7 +99,7 @@ static int reached_quorum(uint64_t bit_map, int group_size){
     }
 }
 
-static int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_size, void* data, output_peer_t *output_peers)
+static int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_size, void* data, output_peer_t *output_peers, uint8_t type, int clt_id)
 {
     dare_log_entry_t *entry;
     if (output_peers == NULL)
@@ -108,14 +115,16 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
 
         db_key_type record_no = vstol(&next);
         uint64_t bit_map = (1<<comp->node_id);
-        if(store_record(comp->db_ptr, sizeof(record_no), &record_no, data_size, data))
+
+        comp->highest_seen_vs->req_id = comp->highest_seen_vs->req_id + 1;
+        entry = log_append_entry(SRV_DATA->log, data_size, data, &next, comp->node_id, comp->highest_committed_vs, type, clt_id);
+
+        request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
+        if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data),record_data))
         {
             fprintf(stderr, "Can not save record from database.\n");
             goto handle_submit_req_exit;
         }
-
-        comp->highest_seen_vs->req_id = comp->highest_seen_vs->req_id + 1;
-        entry = log_append_entry(SRV_DATA->log, data_size, data, &next, comp->node_id, comp->highest_committed_vs, CSM);
 
         uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
         rem_mem_t rm;
@@ -161,7 +170,7 @@ recheck:
         pthread_mutex_lock(&comp->lock);
 
         long output_idx = *(long*)data / CHECK_PERIOD - 1;
-        entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, OUTPUT);
+        entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type, clt_id);
         listNode *node = listIndex(output_handler.output_list, output_idx);
         entry->ack[comp->node_id].hash = *(uint64_t*)listNodeValue(node);
         entry->ack[comp->node_id].node_id = comp->node_id;
@@ -200,9 +209,9 @@ handle_submit_req_exit:
     return 0;
 }
 
-int consensus_submit_request(struct consensus_component_t* comp,size_t data_size,void* data,output_peer_t *output_peers){
+int consensus_submit_request(struct consensus_component_t* comp,size_t data_size,void* data,output_peer_t *output_peers, uint8_t type, int clt_id){
     if(LEADER==comp->my_role){
-       return leader_handle_submit_req(comp,data_size,data,output_peers);
+       return leader_handle_submit_req(comp,data_size,data,output_peers,type,clt_id);
     }else{
         return 0;
     }
@@ -217,7 +226,7 @@ void *handle_accept_req(void* arg)
     db_key_type index;
 
     size_t data_size;
-    void* retrieve_data = NULL;
+    request_record* retrieve_data = NULL;
     
     dare_log_entry_t* entry;
 
@@ -226,7 +235,7 @@ void *handle_accept_req(void* arg)
         while(comp->cur_view->leader_id != comp->node_id)
         {
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
-            if (entry->type == CSM)//TODO atmoic opeartion
+            if (entry->type == P_SEND || entry->type == P_CONNECT || entry->type == P_CLOSE)//TODO atmoic opeartion
             {
                 struct timespec start_time, end_time;
                 if (comp->measure_latency)
@@ -250,8 +259,9 @@ void *handle_accept_req(void* arg)
                 }
 
                 db_key_type record_no = vstol(&entry->msg_vs);
-                // record the data persistently 
-                store_record(comp->db_ptr, sizeof(record_no), &record_no, entry->data_size, entry->data);
+                // record the data persistently
+                request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
+                store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data), record_data);
                 SRV_DATA->log->tail = SRV_DATA->log->end;
                 SRV_DATA->log->end += log_entry_len(entry);
                 uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
@@ -287,7 +297,7 @@ void *handle_accept_req(void* arg)
                     SYS_LOG(comp, "view id %"PRIu32", req id %"PRIu32": %llu nanoseconds\n", entry->msg_vs.view_id, entry->msg_vs.req_id, (long long unsigned int) diff);
                 }
             }
-            if (entry->type == OUTPUT)
+            if (entry->type == P_OUTPUT)
             {
                 listNode *node = listIndex(output_handler.output_list, *(long*)entry->data); // Return the element at the specified zero-based index where 0 is the head, 1 is the element next to head and so on.
 

@@ -45,6 +45,10 @@ import subprocess
 import time
 import sys
 import os
+import tempfile
+import zipfile
+import shutil
+
 
 # They are global variables, and will be initialised in init()
 #=================
@@ -54,12 +58,14 @@ RDMA_CFG=""
 AIM_PID=-1
 # self id repesents the guard
 SELF_ID=-1 
+# Dir for storing checkpoint zip files.
+STORE_BASE="/tmp/checkpoint_store"
 #=================
 # The IP:PORT I am listening for service.
 BIND_HOST="0.0.0.0"
 BIND_PORT=12345
 # The unix socket I am listening for accepting internal request.
-UNIX_SOCK="guard.sock"
+UNIX_SOCK="/tmp/guard.sock"
 
 DEF_INDEX="""<!DOCTYPE html>
 <html>
@@ -89,6 +95,10 @@ def init():
 		print "[init] error: %s"%(str(e))
 		exit()
 	print "The guard has got self_id:%d, aim_pid:%d, and cfg file: %s"%(SELF_ID,AIM_PID,RDMA_CFG)
+	if os.path.exists(STORE_BASE):
+		shutil.rmtree(STORE_BASE)
+	else: # dir is not existed, we need create one
+		os.mkdir(STORE_BASE)
 
 # default handler of index.html
 def index(environ, start_response):
@@ -149,16 +159,44 @@ def application(environ, start_response):
 			return callback(environ, start_response)
 	return not_found(environ, start_response)
 
+def getNextBaseName():
+	max_id = 0
+	for root, dirs, files in os.walk(STORE_BASE):
+		for name in files:
+			print "[getNextBaseName] name: %s"%(name)
+			if name.startswith("checkpoint_"):
+				prefix_size = len("checkpoint_")
+				sufix_size = len(".zip")
+				file_id = name[prefix_size+1:len(name)-sufix_size]
+				absName = os.path.join(root,name)
+				print "[getNextBaseName] absName: %s, current file_id: %s"%(absName,file_id)	
+				try:
+					file_id = int(file_id)
+					if max_id < file_id:
+						max_id = file_id
+				except Exception as e:
+					pass
+	next_id = max_id+1
+	return os.path.join(STORE_BASE,"checkpoint_%d"%(next_id))
+
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
 	# mkdir dump
+	tmpDir = None
 	try:
-		os.mkdir("dump")
+		tmpDir = tempfile.mkdtemp()
 	except Exception as e:
 		pass
-	cmd="/sbin/criu dump -v4 -D ./dump -t %d"%(AIM_PID)
-	print "[inner_checkpoint]cmd: %s"%(cmd)
-	subprocess.call(cmd,shell=True)
+	if tmpDir:
+		cmd="/sbin/criu dump -v4 --leave-running -D %s -t %d"%(tmpDir,AIM_PID)
+		print "[inner_checkpoint]cmd: %s"%(cmd)
+		subprocess.call(cmd,shell=True)
+		zipBaseName = getNextBaseName() # without extName
+		zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
+		print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
+		shutil.rmtree(tmpDir)
+	else:
+		print "[inner_checkpoint]creat tmpDir failed."
 	return
 
 def inner_restore(node_id,round_id):

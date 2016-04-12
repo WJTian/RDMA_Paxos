@@ -1,3 +1,3 @@
 #!/bin/sh
 
-kill `cat ./redis.pid`
+sudo kill `cat ./redis.pid`

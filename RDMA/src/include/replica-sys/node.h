@@ -14,7 +14,7 @@ typedef struct node_config_t{
 	int measure_latency;
 }node_config;
 
-typedef void (*user_cb)(size_t data_size,void* data,void* arg);
+typedef void (*user_cb)(db_key_type index,void* arg);
 
 typedef struct node_t{
 	node_id_t node_id;

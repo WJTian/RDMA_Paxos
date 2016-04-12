@@ -3,6 +3,7 @@
 set -x
 #start redis firstly
 sh ./stop.sh
+sleep 1
 ps -elf | grep redis
 app_cmd="./apps/redis-server ./apps/redis.conf"
 $app_cmd

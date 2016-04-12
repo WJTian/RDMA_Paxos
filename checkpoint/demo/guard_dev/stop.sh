@@ -1,3 +1,3 @@
 #!/bin/sh
 
-sudo kill `cat ./redis.pid`
+sudo pkill redis-server 

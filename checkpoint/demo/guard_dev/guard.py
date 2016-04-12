@@ -60,6 +60,8 @@ AIM_PID=-1
 SELF_ID=-1 
 # Dir for storing checkpoint zip files.
 STORE_BASE="/tmp/checkpoint_store"
+# kill cmd 
+KILL_CMD="pkill redis-server"
 #=================
 # The IP:PORT I am listening for service.
 BIND_HOST="0.0.0.0"
@@ -130,7 +132,7 @@ def outer_checkpoint(environ, start_response):
 		inner_checkpoint(node_id,round_id)
 	else:
 		print "[outer_checkpoint] access deny, id is invalid SELF_ID:%d, node_id:%d"%(SELF_ID,node_id)
-	return ['checkpoint ok']	
+	return ['checkpoint ok\n']	
 
 def outer_restore(environ, start_response):
 	start_response('200 OK',[('Content-Type', 'text/html')])
@@ -140,7 +142,7 @@ def outer_restore(environ, start_response):
 		inner_restore(node_id,round_id)
 	else:
 		print "[outer_checkpoint] access deny, id is invalid SELF_ID:%d, node_id:%d"%(SELF_ID,node_id)
-	return ['restore ok']
+	return ['restore ok\n']
 
 # The implementation is based on http://lucumr.pocoo.org/2007/5/21/getting-started-with-wsgi/
 def application(environ, start_response):
@@ -159,23 +161,29 @@ def application(environ, start_response):
 			return callback(environ, start_response)
 	return not_found(environ, start_response)
 
-def getNextBaseName():
+def getMaxCheckPointID():
 	max_id = 0
 	for root, dirs, files in os.walk(STORE_BASE):
 		for name in files:
-			print "[getNextBaseName] name: %s"%(name)
+			#print "[getNextBaseName] name: %s"%(name)
 			if name.startswith("checkpoint_"):
 				prefix_size = len("checkpoint_")
 				sufix_size = len(".zip")
-				file_id = name[prefix_size+1:len(name)-sufix_size]
+				file_id = name[prefix_size:len(name)-sufix_size]
 				absName = os.path.join(root,name)
-				print "[getNextBaseName] absName: %s, current file_id: %s"%(absName,file_id)	
+				#print "[getNextBaseName] absName: %s, current file_id: %s"%(absName,file_id)	
 				try:
 					file_id = int(file_id)
 					if max_id < file_id:
 						max_id = file_id
 				except Exception as e:
 					pass
+	return max_id
+def getCurrBaseName():
+	max_id = getMaxCheckPointID()
+	return os.path.join(STORE_BASE,"checkpoint_%d"%(max_id))
+def getNextBaseName():
+	max_id = getMaxCheckPointID() 
 	next_id = max_id+1
 	return os.path.join(STORE_BASE,"checkpoint_%d"%(next_id))
 
@@ -201,9 +209,24 @@ def inner_checkpoint(node_id,round_id):
 
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring  at machine %d, at round %d"%(node_id,round_id)
-	cmd="/sbin/criu restore -v4 -d -D ./dump"
-	print "[inner_restore]cmd: %s"%(cmd)
-	subprocess.call(cmd,shell=True)
+	# mkdir dump
+	tmpDir = None
+	currZip = getCurrBaseName()+".zip"
+	print "[inner_restore] find current checkpoint file %s"%(currZip)
+        try:
+                tmpDir = tempfile.mkdtemp()
+        except Exception as e:
+                pass
+        if tmpDir and os.path.exists(currZip):
+		# kill 
+		subprocess.call(KILL_CMD,shell=True)
+		time.sleep(1) # wait for kill
+		# unzip
+		with zipfile.ZipFile(currZip,'r') as zf:
+			zf.extractall(tmpDir)
+		cmd="/sbin/criu restore -v4 -d -D %s"%(tmpDir)
+		print "[inner_restore]cmd: %s"%(cmd)
+		subprocess.call(cmd,shell=True)
 	return 
 
 def inner_service(cmd,node_id,round_id):

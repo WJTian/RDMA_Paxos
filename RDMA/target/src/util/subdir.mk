@@ -1,9 +1,11 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../src/util/common-structure.c 
+../src/util/common-structure.c \
+../src/util/clock.c
 
 OBJS += \
-./src/util/common-structure.o 
+./src/util/common-structure.o \
+./src/util/clock.o
 
 
 # Each subdirectory must supply rules for building sources it contributes

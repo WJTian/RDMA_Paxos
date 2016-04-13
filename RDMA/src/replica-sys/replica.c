@@ -168,7 +168,7 @@ int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port)
     return 0;
 }
 
-int initialize_node(node* my_node,list* excluded_fd,const char* log_path, void (*user_cb)(size_t data_size,void* data,void* arg), void* db_ptr,void* arg){
+int initialize_node(node* my_node,list* excluded_fd,const char* log_path, void (*user_cb)(db_key_type index,void* arg), void* db_ptr,void* arg){
 
     int flag = 1;
 
@@ -253,7 +253,7 @@ uint32_t get_group_size(node* my_node)
     return my_node->group_size;
 }
 
-node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(size_t data_size,void* data,void* arg), void* db_ptr,void* arg){
+node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));

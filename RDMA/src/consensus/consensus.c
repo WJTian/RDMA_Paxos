@@ -4,7 +4,7 @@
 #include "../include/rdma/dare_ibv_rc.h"
 #include "../include/rdma/dare_server.h"
 
-#define BILLION 1000000000L
+#include "../include/util/clock.h"
 
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
@@ -104,12 +104,11 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
     dare_log_entry_t *entry;
     if (output_peers == NULL)
     {
+        list *clock_list = clock_init();
         pthread_mutex_lock(&comp->lock);
-        struct timespec start_time, end_time;
+
         if (comp->measure_latency)
-        {
-            clock_gettime(CLOCK_MONOTONIC, &start_time);
-        }
+            clock_add(clock_list);
 
         view_stamp next = get_next_view_stamp(comp);
 
@@ -154,11 +153,11 @@ recheck:
             //TODO: do we need the lock here?
             while (entry->msg_vs.req_id > comp->highest_committed_vs->req_id + 1);
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
+            
             if (comp->measure_latency)
             {
-                clock_gettime(CLOCK_MONOTONIC, &end_time);
-                uint64_t diff = BILLION * (end_time.tv_sec - start_time.tv_sec) + end_time.tv_nsec - start_time.tv_nsec;
-                SYS_LOG(comp, "view id %"PRIu32", req id %"PRIu32": %llu nanoseconds\n", next.view_id, next.req_id, (long long unsigned int) diff);
+                clock_add(clock_list);
+                clock_display(comp->sys_log_file, clock_list);
             }
         }else{
             goto recheck;
@@ -224,9 +223,6 @@ void *handle_accept_req(void* arg)
     db_key_type start;
     db_key_type end;
     db_key_type index;
-
-    size_t data_size;
-    request_record* retrieve_data = NULL;
     
     dare_log_entry_t* entry;
 
@@ -237,11 +233,9 @@ void *handle_accept_req(void* arg)
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
             if (entry->type == P_SEND || entry->type == P_CONNECT || entry->type == P_CLOSE)//TODO atmoic opeartion
             {
-                struct timespec start_time, end_time;
+                list *clock_list = clock_init();
                 if (comp->measure_latency)
-                {
-                    clock_gettime(CLOCK_MONOTONIC, &start_time);
-                }
+                    clock_add(clock_list);
 
                 if(entry->msg_vs.view_id < comp->cur_view->view_id){
                 // TODO
@@ -285,16 +279,14 @@ void *handle_accept_req(void* arg)
                     end = vstol(&entry->req_canbe_exed);
                     for(index = start; index <= end; index++)
                     {
-                        retrieve_record(comp->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
-                        comp->ucb(data_size,retrieve_data,comp->up_para);
+                        comp->ucb(index,comp->up_para);
                     }
                     *(comp->highest_committed_vs) = entry->req_canbe_exed;
                 }
                 if (comp->measure_latency)
                 {
-                    clock_gettime(CLOCK_MONOTONIC, &end_time);
-                    uint64_t diff = BILLION * (end_time.tv_sec - start_time.tv_sec) + end_time.tv_nsec - start_time.tv_nsec;
-                    SYS_LOG(comp, "view id %"PRIu32", req id %"PRIu32": %llu nanoseconds\n", entry->msg_vs.view_id, entry->msg_vs.req_id, (long long unsigned int) diff);
+                    clock_add(clock_list);
+                    clock_display(comp->sys_log_file, clock_list);
                 }
             }
             if (entry->type == P_OUTPUT)

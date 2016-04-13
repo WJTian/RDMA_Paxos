@@ -17,7 +17,7 @@ typedef struct socket_pair_t{
 
     struct proxy_node_t* proxy;
     int* p_s;
-
+    int s_p;
 
     UT_hash_handle hh;
 }socket_pair;
@@ -40,6 +40,8 @@ typedef struct proxy_node_t{
 
     int check_output;
     int rsm;
+
+    db_key_type cur_rec;
 
     list *excluded_fd;
 

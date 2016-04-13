@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <netinet/tcp.h>
 #include <sys/stat.h>
+#include <aio.h>
 
 void proxy_on_accept(int fd, proxy_node* proxy)
 {
@@ -26,6 +27,22 @@ void proxy_on_accept(int fd, proxy_node* proxy)
     return;
 }
 
+int *replica_on_accept(proxy_node* proxy)
+{
+    uint32_t leader_id = get_leader_id(proxy->con_node);
+    if (proxy->node_id != leader_id)
+    {
+        request_record* retrieve_data = NULL;
+        size_t data_size;
+        retrieve_record(proxy->db_ptr, sizeof(db_key_type), &proxy->cur_rec, &data_size, (void**)&retrieve_data);
+        socket_pair* ret = NULL;
+        MY_HASH_GET(&retrieve_data->clt_id,proxy->hash_map,ret);
+        return &ret->s_p;
+    }
+
+    return NULL;
+}
+
 void proxy_on_close(int fd, proxy_node* proxy)
 {
     uint32_t leader_id = get_leader_id(proxy->con_node);
@@ -43,7 +60,7 @@ void proxy_on_close(int fd, proxy_node* proxy)
 
 void proxy_on_check(int fd, const void* buf, size_t ret, proxy_node* proxy)
 {
-    if (proxy->check_output && listSearchKey(proxy->excluded_fd, &fd) == NULL)
+    if (proxy->check_output && listSearchKey(proxy->excluded_fd, (void*)&fd) == NULL)
     {
         pthread_mutex_lock(&output_handler.lock);
         store_output(buf, ret);
@@ -83,7 +100,7 @@ static int SetBlocking(int fd, int blocking) {
     return 0;
 }
 
-static int KeepAlive(int fd) {
+static int keep_alive(int fd) {
     int val = 1;
 
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
@@ -96,9 +113,14 @@ static int KeepAlive(int fd) {
 
 void client_side_on_read(proxy_node* proxy, void *buf, size_t ret, output_peer_t* output_peers, int fd){
     uint32_t leader_id = get_leader_id(proxy->con_node);
-    if (listSearchKey(proxy->excluded_fd, &fd) == NULL && proxy->rsm != 0 && proxy->node_id == leader_id)
+    if (proxy->node_id == leader_id)
     {
-        rsm_op(proxy->con_node, ret, buf, output_peers, P_SEND, fd);
+        struct stat sb;
+        fstat(fd, &sb);
+        if ((sb.st_mode & S_IFMT) == S_IFSOCK && proxy->rsm != 0 && listSearchKey(proxy->excluded_fd, &fd) == NULL)
+        {
+            rsm_op(proxy->con_node, ret, buf, output_peers, P_SEND, fd);
+        }
     }
     return;
 };
@@ -111,8 +133,12 @@ static void do_action_close(int clt_id,void* arg){
         goto do_action_close_exit;
     }else{      
         if(ret->p_s!=NULL){
+            if (close(*ret->p_s))
+                fprintf(stderr, "failed to close socket\n");
             ret->key = -1;
-            listNode *node = listSearchKey(proxy->excluded_fd, ret->p_s);
+            listNode *node = listSearchKey(proxy->excluded_fd, (void*)ret->p_s);
+            if (node == NULL)
+                fprintf(stderr, "failed to find the matching key\n");
             listDelNode(proxy->excluded_fd, node);
         }
     }
@@ -135,7 +161,9 @@ static void do_action_connect(int clt_id,void* arg){
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
         *fd = socket(AF_INET, SOCK_STREAM, 0);
+#ifndef AIO
         SetBlocking(*fd, 0);
+#endif
         listAddNodeTail(proxy->excluded_fd, (void*)fd);
 
         connect(*fd, (struct sockaddr*)&proxy->sys_addr.s_addr,proxy->sys_addr.s_sock_len);
@@ -145,16 +173,15 @@ static void do_action_connect(int clt_id,void* arg){
         int enable = 1;
         if(setsockopt(*fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
             printf("TCP_NODELAY SETTING ERROR!\n");
-        KeepAlive(*fd);
+        keep_alive(*fd);
     }
     return;
 }
 
-static void do_action_send(size_t data_size,void* data,void* arg){
+static void do_action_send(request_record *retrieve_data,void* arg){
     proxy_node* proxy = arg;
-    request_record *record_data = data;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&record_data->clt_id,proxy->hash_map,ret);
+    MY_HASH_GET(&retrieve_data->clt_id,proxy->hash_map,ret);
 
     if(NULL==ret){
         goto do_action_send_exit;
@@ -163,39 +190,52 @@ static void do_action_send(size_t data_size,void* data,void* arg){
             goto do_action_send_exit;
         }else{
             SYS_LOG(proxy, "Proxy sends request to the real server.\n");
-            write(*ret->p_s, record_data->data, record_data->data_size);
+#ifdef AIO
+            struct aiocb my_aiocb;
+            bzero((void*)&my_aiocb, sizeof(struct aiocb));
+            my_aiocb.aio_fildes = *ret->p_s;
+            my_aiocb.aio_nbytes = retrieve_data->data_size;
+            my_aiocb.aio_buf = retrieve_data->data;
+            aio_write(&my_aiocb);
+#else
+            write(*ret->p_s, retrieve_data->data, retrieve_data->data_size);
+#endif
         }
     }
 do_action_send_exit:
     return;
 }
 
-static void update_state(size_t data_size,void* data,void* arg){
+static void update_state(db_key_type index,void* arg){
     proxy_node* proxy = arg;
 
-    request_record *record_data = (request_record*)data;
+    request_record* retrieve_data = NULL;
+    size_t data_size;
+    retrieve_record(proxy->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
+    proxy->cur_rec = index;
+
     FILE* output = NULL;
     if(proxy->req_log){
         output = proxy->req_log_file;
     }
-    switch(record_data->type){
+    switch(retrieve_data->type){
         case P_CONNECT:
             if(output!=NULL){
                 fprintf(output,"Operation: Connects.\n");
             }
-            do_action_connect(record_data->clt_id,arg);
+            do_action_connect(retrieve_data->clt_id,arg);
             break;
         case P_SEND:
             if(output!=NULL){
                 fprintf(output,"Operation: Sends data.\n");
             }
-            do_action_send(data_size,data,arg);
+            do_action_send(retrieve_data,arg);
             break;
         case P_CLOSE:
             if(output!=NULL){
                 fprintf(output,"Operation: Closes.\n");
             }
-            do_action_close(record_data->clt_id,arg);
+            do_action_close(retrieve_data->clt_id,arg);
             break;
         default:
             break;

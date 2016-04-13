@@ -9,7 +9,7 @@ typedef uint64_t db_key_type;
 struct node_t;
 struct consensus_component_t;
 
-typedef void (*user_cb)(size_t data_size,void* data,void* arg);
+typedef void (*user_cb)(db_key_type index,void* arg);
 
 typedef enum con_role_t{
     LEADER = 0,

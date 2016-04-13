@@ -110,16 +110,29 @@ extern "C" int __libc_start_main(
 extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	typedef int (*orig_accept_type)(int, sockaddr *, socklen_t *);
-	orig_accept_type orig_accept;
-	orig_accept = (orig_accept_type) dlsym(RTLD_NEXT, "accept");
-	int ret = orig_accept(socket, address, address_len);
-
-	struct stat sb;
-	fstat(ret, &sb);
-
-	if (proxy != NULL && (sb.st_mode & S_IFMT) == S_IFSOCK)
+	static orig_accept_type orig_accept;
+	if (!orig_accept)
+		orig_accept = (orig_accept_type) dlsym(RTLD_NEXT, "accept");
+	int ret;
+	if (proxy == NULL)
 	{
-		proxy_on_accept(ret, proxy);
+		ret = orig_accept(socket, address, address_len);
+	} else {
+		int *s_p = replica_on_accept(proxy);
+		ret = orig_accept(socket, address, address_len);
+
+		if (ret >= 0)
+		{
+			struct stat sb;
+			fstat(ret, &sb);
+			if ((sb.st_mode & S_IFMT) == S_IFSOCK)
+			{
+				if (s_p != NULL)
+					*s_p = ret;
+				else
+					proxy_on_accept(ret, proxy);
+			}
+		}
 	}
 
 	return ret;
@@ -136,8 +149,9 @@ extern "C" int close(int fildes)
 	}
 
 	typedef int (*orig_close_type)(int);
-	orig_close_type orig_close;
-	orig_close = (orig_close_type) dlsym(RTLD_NEXT, "close");
+	static orig_close_type orig_close;
+	if (!orig_close)
+		orig_close = (orig_close_type) dlsym(RTLD_NEXT, "close");
 	int ret = orig_close(fildes);
 	return ret;
 }
@@ -145,14 +159,12 @@ extern "C" int close(int fildes)
 extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 {
 	typedef ssize_t (*orig_recv_type)(int, void *, size_t, int);
-	orig_recv_type orig_recv;
-	orig_recv = (orig_recv_type) dlsym(RTLD_NEXT, "recv");
+	static orig_recv_type orig_recv;
+	if (!orig_recv)
+		orig_recv = (orig_recv_type) dlsym(RTLD_NEXT, "recv");
 	ssize_t ret = orig_recv(sockfd, buf, len, flags);
 
-	struct stat sb;
-	fstat(sockfd, &sb);
-
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
+	if (ret > 0 && proxy != NULL)
 	{
 		client_side_on_read(proxy, buf, ret, NULL, sockfd);
 	}
@@ -163,14 +175,12 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 extern "C" ssize_t read(int fd, void *buf, size_t count)
 {
 	typedef ssize_t (*orig_read_type)(int, void *, size_t);
-	orig_read_type orig_read;
-	orig_read = (orig_read_type) dlsym(RTLD_NEXT, "read");
+	static orig_read_type orig_read;
+	if (!orig_read)
+		orig_read = (orig_read_type) dlsym(RTLD_NEXT, "read");
 	ssize_t ret = orig_read(fd, buf, count);
 
-	struct stat sb;
-	fstat(fd, &sb);
-
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
+	if (ret > 0 && proxy != NULL)
 	{
 		client_side_on_read(proxy, buf, ret, NULL, fd);
 	}
@@ -181,8 +191,9 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 extern "C" ssize_t write(int fd, const void *buf, size_t count)
 {
 	typedef ssize_t (*orig_write_type)(int, const void *, size_t);
-	orig_write_type orig_write;
-	orig_write = (orig_write_type) dlsym(RTLD_NEXT, "write");
+	static orig_write_type orig_write;
+	if (!orig_write)
+		orig_write = (orig_write_type) dlsym(RTLD_NEXT, "write");
 	ssize_t ret = orig_write(fd, buf, count);
 
 	struct stat sb;
@@ -199,8 +210,9 @@ extern "C" ssize_t write(int fd, const void *buf, size_t count)
 extern "C" ssize_t send(int fd, const void *buf, size_t len, int flags)
 {
 	typedef ssize_t (*orig_send_type)(int, const void *, size_t, int);
-	orig_send_type orig_send;
-	orig_send = (orig_send_type) dlsym(RTLD_NEXT, "send");
+	static orig_send_type orig_send;
+	if (!orig_send)
+		orig_send = (orig_send_type) dlsym(RTLD_NEXT, "send");
 	ssize_t ret = orig_send(fd, buf, len, flags);
 
 	struct stat sb;

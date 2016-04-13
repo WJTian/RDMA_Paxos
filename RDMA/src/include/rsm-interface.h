@@ -16,6 +16,7 @@ extern "C" {
 	void proxy_on_accept(int fd, struct proxy_node_t* proxy);
 	void proxy_on_check(int fd, const void* buf, size_t ret, struct proxy_node_t* proxy);
 	void proxy_on_close(int fd, struct proxy_node_t* proxy);
+	int *replica_on_accept(struct proxy_node_t* proxy);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-g -O0
-LDLIBS= -lrdmacm -libverbs
+LDLIBS=-lrdmacm -libverbs -pthread
 BINS= server client
 
 server:rdma_server.o

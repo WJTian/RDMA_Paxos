@@ -9,6 +9,8 @@
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
+#define MEASURE_LATENCY
+
 typedef enum request_type_t{
 	P_CONNECT=1,
 	P_SEND=2,
@@ -102,8 +104,9 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
     {
 
 #ifdef MEASURE_LATENCY
-        list *clock_list = clock_init();
-        clock_add(clock_list);
+        clock_handler c_k;
+        clock_init(&c_k);
+        clock_add(&c_k);
 #endif
 
         pthread_mutex_lock(&comp->lock);
@@ -121,6 +124,7 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
         }
 
         SRV_DATA->log->tail = SRV_DATA->log->end;
+        entry->data_size = data_size + 1;
         SRV_DATA->log->end += log_entry_len(entry);
         uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
 
@@ -136,14 +140,17 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
         entry->node_id = comp->node_id;
         entry->type = type;
         entry->clt_id = clt_id;
-        entry->data_size = data_size;
 
         request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
-        if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data),record_data))
+        if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data))
         {
             fprintf(stderr, "Can not save record from database.\n");
             goto handle_submit_req_exit;
         }
+        
+        char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
+        *dummy = 'f';
+
         uint64_t bit_map = (1<<comp->node_id);
         rem_mem_t rm;
         dare_ib_ep_t *ep;
@@ -173,53 +180,12 @@ recheck:
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
             
 #ifdef MEASURE_LATENCY
-                clock_add(clock_list);
-                clock_display(comp->sys_log_file, clock_list);
+                clock_add(&c_k);
+                clock_display(comp->sys_log_file, &c_k);
 #endif
 
         }else{
             goto recheck;
-        }
-    }
-
-    if (output_peers != NULL)
-    {
-        pthread_mutex_lock(&comp->lock);
-
-        long output_idx = *(long*)data / CHECK_PERIOD - 1;
-        dare_log_entry_t *entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type, clt_id);
-        listNode *node = listIndex(output_handler.output_list, output_idx);
-        entry->ack[comp->node_id].hash = *(uint64_t*)listNodeValue(node);
-        entry->ack[comp->node_id].node_id = comp->node_id;
-
-        uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
-        rem_mem_t rm;
-        dare_ib_ep_t *ep;
-
-        uint32_t i;
-        for (i = 0; i < comp->group_size; i++) {
-            ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
-            if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
-                continue;
-
-            rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
-            rm.rkey = ep->rc_ep.rmt_mr.rkey;
-
-            post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
-        }
-        dare_log_entry_t *prev_entry = log_get_entry(SRV_DATA->log, &output_handler.prev_offset);
-        output_handler.prev_offset = SRV_DATA->log->tail;
-        pthread_mutex_unlock(&comp->lock);
-
-        if (output_idx != 0)
-        {
-            for (i = 0; i < comp->group_size; i++)
-            {
-                output_peers[i].node_id = i;
-                output_peers[i].hash = prev_entry->ack[i].hash;
-                output_peers[i].idx = *(long*)prev_entry->data * CHECK_PERIOD + 1;
-                SYS_LOG(comp, "For output idx %ld, node%"PRIu32"'s hash value is %"PRIu64"\n", *(long*)prev_entry->data * CHECK_PERIOD + 1, i, prev_entry->ack[i].hash);
-            }
         }
     }
 handle_submit_req_exit:
@@ -241,86 +207,69 @@ void *handle_accept_req(void* arg)
         while(comp->cur_view->leader_id != comp->node_id)
         {
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
-            if (entry->type == P_SEND || entry->type == P_CONNECT || entry->type == P_CLOSE)//TODO atmoic opeartion
+            if (entry->data_size != 0)
             {
 
 #ifdef MEASURE_LATENCY
-                list *clock_list = clock_init();
-                clock_add(clock_list);
+                clock_handler c_k;
+                clock_init(&c_k);
+                clock_add(&c_k);
 #endif
-
-                if(entry->msg_vs.view_id < comp->cur_view->view_id){
-                // TODO
-                //goto reloop;
-                }
-                // if we this message is not from the current leader
-                if(entry->msg_vs.view_id == comp->cur_view->view_id && entry->node_id != comp->cur_view->leader_id){
-                // TODO
-                //goto reloop;
-                }
-
-                // update highest seen request
-                if(view_stamp_comp(&entry->msg_vs, comp->highest_seen_vs) > 0){
-                    *(comp->highest_seen_vs) = entry->msg_vs;
-                }
-
-                db_key_type record_no = vstol(&entry->msg_vs);
-                // record the data persistently
-                request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
-                store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data), record_data);
-                SRV_DATA->log->tail = SRV_DATA->log->end;
-                SRV_DATA->log->end += log_entry_len(entry);
-                uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
-
-                accept_ack* reply = (accept_ack*)((char*)entry + ACCEPT_ACK_SIZE * comp->node_id);
-                reply->node_id = comp->node_id;
-                reply->msg_vs.view_id = entry->msg_vs.view_id;
-                reply->msg_vs.req_id = entry->msg_vs.req_id;
-
-                rem_mem_t rm;
-                dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[entry->node_id].ep;
-
-                rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
-                rm.rkey = ep->rc_ep.rmt_mr.rkey;
-
-                post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
-
-                if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
+                char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
+                if (*dummy == 'f') // atmoic opeartion
                 {
-                    start = vstol(comp->highest_committed_vs)+1;
-                    end = vstol(&entry->req_canbe_exed);
-                    for(index = start; index <= end; index++)
-                    {
-                        comp->ucb(index,comp->up_para);
+                    if(entry->msg_vs.view_id < comp->cur_view->view_id){
+                    // TODO
+                    //goto reloop;
                     }
-                    *(comp->highest_committed_vs) = entry->req_canbe_exed;
-                }
+                    // if we this message is not from the current leader
+                    if(entry->msg_vs.view_id == comp->cur_view->view_id && entry->node_id != comp->cur_view->leader_id){
+                    // TODO
+                    //goto reloop;
+                    }
+
+                    // update highest seen request
+                    if(view_stamp_comp(&entry->msg_vs, comp->highest_seen_vs) > 0){
+                        *(comp->highest_seen_vs) = entry->msg_vs;
+                    }
+
+                    db_key_type record_no = vstol(&entry->msg_vs);
+                    // record the data persistently
+                    request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
+                    store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data);
+                    SRV_DATA->log->tail = SRV_DATA->log->end;
+                    SRV_DATA->log->end += log_entry_len(entry);
+                    uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
+
+                    accept_ack* reply = (accept_ack*)((char*)entry + ACCEPT_ACK_SIZE * comp->node_id);
+                    reply->node_id = comp->node_id;
+                    reply->msg_vs.view_id = entry->msg_vs.view_id;
+                    reply->msg_vs.req_id = entry->msg_vs.req_id;
+
+                    rem_mem_t rm;
+                    dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[entry->node_id].ep;
+
+                    rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
+                    rm.rkey = ep->rc_ep.rmt_mr.rkey;
+
+                    post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
+
+                    if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
+                    {
+                        start = vstol(comp->highest_committed_vs)+1;
+                        end = vstol(&entry->req_canbe_exed);
+                        for(index = start; index <= end; index++)
+                        {
+                            comp->ucb(index,comp->up_para);
+                        }
+                        *(comp->highest_committed_vs) = entry->req_canbe_exed;
+                    }
 
 #ifdef MEASURE_LATENCY
-                    clock_add(clock_list);
-                    clock_display(comp->sys_log_file, clock_list);
+                    clock_add(&c_k);
+                    clock_display(comp->sys_log_file, &c_k);
 #endif
-                    
-            }
-            if (entry->type == P_OUTPUT)
-            {
-                listNode *node = listIndex(output_handler.output_list, *(long*)entry->data); // Return the element at the specified zero-based index where 0 is the head, 1 is the element next to head and so on.
-
-                SRV_DATA->log->tail = SRV_DATA->log->end;
-                SRV_DATA->log->end += log_entry_len(entry);
-                uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
-                
-                accept_ack* reply = (accept_ack*)((char*)entry + ACCEPT_ACK_SIZE * comp->node_id);
-                reply->node_id = comp->node_id;
-                reply->hash = *(uint64_t*)listNodeValue(node);
-
-                rem_mem_t rm;
-                dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[entry->node_id].ep;
-
-                rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
-                rm.rkey = ep->rc_ep.rmt_mr.rkey;
-
-                post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
+                }   
             }
         }
     }

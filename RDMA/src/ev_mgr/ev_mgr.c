@@ -8,8 +8,6 @@
 #include <sys/stat.h>
 #include <aio.h>
 
-#define AIO
-
 void leader_on_accept(int fd, event_manager* ev_mgr)
 {
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
@@ -67,22 +65,12 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
         pthread_mutex_lock(&output_handler.lock);
-        store_output(buf, ret);
-        long output_idx = output_handler.count;
         pthread_mutex_unlock(&output_handler.lock);
 
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
-        if (leader_id == ev_mgr->node_id && output_idx % CHECK_PERIOD == 0)
+        if (leader_id == ev_mgr->node_id)
         {
-            output_peer_t output_peers[MAX_SERVER_COUNT];
-            server_side_on_read(ev_mgr, &output_idx, sizeof(long), output_peers, fd);
-            if (output_idx != CHECK_PERIOD)
-            {
-                uint32_t group_size = get_group_size(ev_mgr->con_node);
-                do_decision(output_peers, group_size);
-            }
         }
-
     }
 }
 

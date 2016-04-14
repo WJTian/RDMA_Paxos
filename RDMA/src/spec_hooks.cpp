@@ -8,7 +8,7 @@
 
 #define dprintf(fmt...)
 
-struct proxy_node_t* proxy;
+struct event_manager_t* ev_mgr;
 
 typedef int (*main_type)(int, char**, char**);
 
@@ -31,8 +31,8 @@ void tern_init_func(int argc, char **argv, char **env)
 	char* log_dir = NULL;
 	const char* id = getenv("node_id");
 	uint32_t node_id = atoi(id);
-	proxy = NULL;
-	proxy = proxy_init(node_id, config_path, log_dir);
+	ev_mgr = NULL;
+	ev_mgr = mgr_init(node_id, config_path, log_dir);
 }
 
 typedef void (*fini_type)(void*);
@@ -114,11 +114,11 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 	if (!orig_accept)
 		orig_accept = (orig_accept_type) dlsym(RTLD_NEXT, "accept");
 	int ret;
-	if (proxy == NULL)
+	if (ev_mgr == NULL)
 	{
 		ret = orig_accept(socket, address, address_len);
 	} else {
-		int *s_p = replica_on_accept(proxy);
+		int *s_p = replica_on_accept(ev_mgr);
 		ret = orig_accept(socket, address, address_len);
 
 		if (ret >= 0)
@@ -130,7 +130,7 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 				if (s_p != NULL)
 					*s_p = ret;
 				else
-					proxy_on_accept(ret, proxy);
+					leader_on_accept(ret, ev_mgr);
 			}
 		}
 	}
@@ -140,12 +140,12 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 
 extern "C" int close(int fildes)
 {
-	struct stat sb;
-	fstat(fildes, &sb);
-	
-	if (proxy != NULL && (sb.st_mode & S_IFMT) == S_IFSOCK)
+	if (ev_mgr != NULL)
 	{
-		proxy_on_close(fildes, proxy);
+		struct stat sb;
+		fstat(fildes, &sb);
+		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
+			mgr_on_close(fildes, ev_mgr);
 	}
 
 	typedef int (*orig_close_type)(int);
@@ -164,9 +164,9 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 		orig_recv = (orig_recv_type) dlsym(RTLD_NEXT, "recv");
 	ssize_t ret = orig_recv(sockfd, buf, len, flags);
 
-	if (ret > 0 && proxy != NULL)
+	if (ret > 0 && ev_mgr != NULL)
 	{
-		client_side_on_read(proxy, buf, ret, NULL, sockfd);
+		server_side_on_read(ev_mgr, buf, ret, NULL, sockfd);
 	}
 
 	return ret;
@@ -180,9 +180,9 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 		orig_read = (orig_read_type) dlsym(RTLD_NEXT, "read");
 	ssize_t ret = orig_read(fd, buf, count);
 
-	if (ret > 0 && proxy != NULL)
+	if (ret > 0 && ev_mgr != NULL)
 	{
-		client_side_on_read(proxy, buf, ret, NULL, fd);
+		server_side_on_read(ev_mgr, buf, ret, NULL, fd);
 	}
 
 	return ret;
@@ -196,12 +196,14 @@ extern "C" ssize_t write(int fd, const void *buf, size_t count)
 		orig_write = (orig_write_type) dlsym(RTLD_NEXT, "write");
 	ssize_t ret = orig_write(fd, buf, count);
 
-	struct stat sb;
-	fstat(fd, &sb);
-
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
+	if (ret > 0 && ev_mgr != NULL)
 	{
-		proxy_on_check(fd, buf, ret, proxy);
+		struct stat sb;
+		fstat(fd, &sb);
+		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
+		{
+			mgr_on_check(fd, buf, ret, ev_mgr);
+		}
 	}
 
 	return ret;
@@ -215,12 +217,14 @@ extern "C" ssize_t send(int fd, const void *buf, size_t len, int flags)
 		orig_send = (orig_send_type) dlsym(RTLD_NEXT, "send");
 	ssize_t ret = orig_send(fd, buf, len, flags);
 
-	struct stat sb;
-	fstat(fd, &sb);
-
-	if (ret > 0 && (sb.st_mode & S_IFMT) == S_IFSOCK && proxy != NULL)
+	if (ret > 0 && ev_mgr != NULL)
 	{
-		proxy_on_check(fd, buf, ret, proxy);
+		struct stat sb;
+		fstat(fd, &sb);
+		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
+		{
+			mgr_on_check(fd, buf, ret, ev_mgr);
+		}
 	}
 
 	return ret;

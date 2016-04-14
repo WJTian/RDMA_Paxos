@@ -1,5 +1,5 @@
-#ifndef PROXY_H 
-#define PROXY_H
+#ifndef EV_MGR_H 
+#define EV_MGR_H
 
 #include "../util/common-header.h"
 #include "../rsm-interface.h"
@@ -9,28 +9,28 @@
 typedef int hk_t;
 typedef uint32_t nid_t;
 
-struct proxy_node_t;
+struct event_manager_t;
 
 
 typedef struct socket_pair_t{
     hk_t key;
 
-    struct proxy_node_t* proxy;
+    struct event_manager_t* ev_mgr;
     int* p_s;
     int s_p;
 
     UT_hash_handle hh;
 }socket_pair;
 
-typedef struct proxy_address_t{
+typedef struct mgr_address_t{
     struct sockaddr_in s_addr;
     size_t s_sock_len;
-}proxy_address;
+}mgr_address;
 
-typedef struct proxy_node_t{
+typedef struct event_manager_t{
     nid_t node_id;
     socket_pair* hash_map;
-    proxy_address sys_addr;
+    mgr_address sys_addr;
 
     // log option
     int ts_log;
@@ -52,14 +52,14 @@ typedef struct proxy_node_t{
     char* db_name;
     db* db_ptr;
 
-}proxy_node;
+}event_manager;
 
-typedef enum proxy_action_t{
+typedef enum mgr_action_t{
     P_CONNECT=1,
     P_SEND=2,
     P_CLOSE=3,
     P_OUTPUT=4,
-}proxy_action;
+}mgr_action;
 
 #define MY_HASH_SET(value,hash_map) do{ \
     HASH_ADD(hh,hash_map,key,sizeof(hk_t),value);}while(0)

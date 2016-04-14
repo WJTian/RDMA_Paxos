@@ -1,8 +1,8 @@
 #include "../include/util/common-header.h"
-#include "../include/proxy/proxy.h"
+#include "../include/ev_mgr/ev_mgr.h"
 #include <libconfig.h>
 
-int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
+int mgr_read_config(struct event_manager_t* cur_node,const char* config_path){
     config_t config_file;
     config_init(&config_file);
 
@@ -16,62 +16,58 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     }
 
     if(group_size<=cur_node->node_id){
-        err_log("PROXY : Invalid Node Id\n");
+        err_log("EVENT MANAGER : Invalid Node Id\n");
         goto goto_config_error;
     }
 
-    config_setting_t *proxy_global_config = NULL;
-    proxy_global_config = config_lookup(&config_file,"proxy_global_config");
+    config_setting_t *mgr_global_config = NULL;
+    mgr_global_config = config_lookup(&config_file,"mgr_global_config");
     
-    if(NULL!=proxy_global_config){
+    if(NULL!=mgr_global_config){
         int rsm;
-        if(config_setting_lookup_int(proxy_global_config,"rsm",&rsm)){
+        if(config_setting_lookup_int(mgr_global_config,"rsm",&rsm)){
             cur_node->rsm = rsm;
         }
         int check_output;
-        if(config_setting_lookup_int(proxy_global_config,"check_output",&check_output)){
+        if(config_setting_lookup_int(mgr_global_config,"check_output",&check_output)){
             cur_node->check_output = check_output;
         }
     }
 
-    config_setting_t *proxy_config = NULL;
-    proxy_config = config_lookup(&config_file,"proxy_config");
+    config_setting_t *mgr_config = NULL;
+    mgr_config = config_lookup(&config_file,"mgr_config");
 
-    if(NULL==proxy_config){
-        err_log("PROXY : Cannot Find Nodes Settings.\n");
+    if(NULL==mgr_config){
+        err_log("EVENT MANAGER : Cannot Find Nodes Settings.\n");
         goto goto_config_error;
     }    
 
-    config_setting_t *pro_ele = config_setting_get_elem(proxy_config,cur_node->node_id);
+    config_setting_t *mgr_ele = config_setting_get_elem(mgr_config,cur_node->node_id);
 
-//    err_log("PROXY : Current Node Id Is %u.\n",cur_node->node_id);
-
-    if(NULL==pro_ele){
-        err_log("PROXY : Cannot Find Current Node's Address Section.\n");
+    if(NULL==mgr_ele){
+        err_log("EVENT MANAGER : Cannot Find Current Node's Address Section.\n");
         goto goto_config_error;
     }
 
 // read the option for log, if it has some sections
     
-    config_setting_lookup_int(pro_ele,"time_stamp_log",&cur_node->ts_log);
-    config_setting_lookup_int(pro_ele,"sys_log",&cur_node->sys_log);
-    config_setting_lookup_int(pro_ele,"stat_log",&cur_node->stat_log);
-    config_setting_lookup_int(pro_ele,"req_log",&cur_node->req_log);
+    config_setting_lookup_int(mgr_ele,"time_stamp_log",&cur_node->ts_log);
+    config_setting_lookup_int(mgr_ele,"sys_log",&cur_node->sys_log);
+    config_setting_lookup_int(mgr_ele,"stat_log",&cur_node->stat_log);
+    config_setting_lookup_int(mgr_ele,"req_log",&cur_node->req_log);
 
     const char* peer_ipaddr=NULL;
     int peer_port=-1;
 
-    if(!config_setting_lookup_string(pro_ele,"ip_address",&peer_ipaddr)){
-        err_log("PROXY : Cannot Find Current Node's IP Address.\n")
-        goto goto_config_error;
-    }
-//    err_log("PROXY : Current Node's Address Is %s.\n",peer_ipaddr);
-    if(!config_setting_lookup_int(pro_ele,"port",&peer_port)){
-        err_log("PROXY : Cannot Find Current Node's Port.\n")
+    if(!config_setting_lookup_string(mgr_ele,"ip_address",&peer_ipaddr)){
+        err_log("EVENT MANAGER : Cannot Find Current Node's IP Address.\n")
         goto goto_config_error;
     }
 
-//    err_log("PROXY : Current Node's Port Is %u.\n",peer_port);
+    if(!config_setting_lookup_int(mgr_ele,"port",&peer_port)){
+        err_log("EVENT MANAGER : Cannot Find Current Node's Port.\n")
+        goto goto_config_error;
+    }
 
     cur_node->sys_addr.s_addr.sin_port = htons(peer_port);
     cur_node->sys_addr.s_addr.sin_family = AF_INET;
@@ -79,7 +75,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     cur_node->sys_addr.s_sock_len = sizeof(cur_node->sys_addr.s_addr);
 
     const char* db_name;
-    if(!config_setting_lookup_string(pro_ele,"db_name",&db_name)){
+    if(!config_setting_lookup_string(mgr_ele,"db_name",&db_name)){
         goto goto_config_error;
     }
     size_t db_name_len = strlen(db_name);

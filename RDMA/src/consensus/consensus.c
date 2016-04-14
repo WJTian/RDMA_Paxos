@@ -31,8 +31,6 @@ typedef struct consensus_component_t{ con_role my_role;
     view_stamp* highest_to_commit_vs;
     view_stamp* highest_committed_vs;
 
-    int measure_latency;
-
     db* db_ptr;
     
     pthread_mutex_t lock;
@@ -40,7 +38,7 @@ typedef struct consensus_component_t{ con_role my_role;
     void* up_para;
 }consensus_component;
 
-consensus_component* init_consensus_comp(struct node_t* node,int measure_latency,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
+consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
     view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,void* arg){
     consensus_component* comp = (consensus_component*)malloc(sizeof(consensus_component));
     memset(comp,0,sizeof(consensus_component));
@@ -49,7 +47,6 @@ consensus_component* init_consensus_comp(struct node_t* node,int measure_latency
         comp->db_ptr = db_ptr;  
         comp->sys_log = sys_log;
         comp->stat_log = stat_log;
-        comp->measure_latency = measure_latency;
         comp->sys_log_file = log;
         comp->my_node = node;
         comp->node_id = node_id;
@@ -99,24 +96,47 @@ static int reached_quorum(uint64_t bit_map, int group_size){
     }
 }
 
-static int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_size, void* data, output_peer_t *output_peers, uint8_t type, int clt_id)
+int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_size, void* data, output_peer_t *output_peers, uint8_t type, int clt_id)
 {
-    dare_log_entry_t *entry;
     if (output_peers == NULL)
     {
-        list *clock_list = clock_init();
-        pthread_mutex_lock(&comp->lock);
 
-        if (comp->measure_latency)
-            clock_add(clock_list);
+#ifdef MEASURE_LATENCY
+        list *clock_list = clock_init();
+        clock_add(clock_list);
+#endif
+
+        pthread_mutex_lock(&comp->lock);
 
         view_stamp next = get_next_view_stamp(comp);
 
         db_key_type record_no = vstol(&next);
-        uint64_t bit_map = (1<<comp->node_id);
 
         comp->highest_seen_vs->req_id = comp->highest_seen_vs->req_id + 1;
-        entry = log_append_entry(SRV_DATA->log, data_size, data, &next, comp->node_id, comp->highest_committed_vs, type, clt_id);
+
+        dare_log_entry_t *entry = log_add_new_entry(SRV_DATA->log);
+
+        if (!log_fit_entry_header(SRV_DATA->log, SRV_DATA->log->end)) {
+            SRV_DATA->log->end = 0;
+        }
+
+        SRV_DATA->log->tail = SRV_DATA->log->end;
+        SRV_DATA->log->end += log_entry_len(entry);
+        uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
+
+        entry->req_canbe_exed.view_id = comp->highest_committed_vs->view_id;
+        entry->req_canbe_exed.req_id = comp->highest_committed_vs->req_id;
+
+        pthread_mutex_unlock(&comp->lock);
+        
+        if (data != NULL)
+            memcpy(entry->data,data,data_size);
+
+        entry->msg_vs = next;
+        entry->node_id = comp->node_id;
+        entry->type = type;
+        entry->clt_id = clt_id;
+        entry->data_size = data_size;
 
         request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
         if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data),record_data))
@@ -124,8 +144,7 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
             fprintf(stderr, "Can not save record from database.\n");
             goto handle_submit_req_exit;
         }
-
-        uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
+        uint64_t bit_map = (1<<comp->node_id);
         rem_mem_t rm;
         dare_ib_ep_t *ep;
 
@@ -140,7 +159,6 @@ static int leader_handle_submit_req(struct consensus_component_t* comp, size_t d
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
         }
-        pthread_mutex_unlock(&comp->lock);
 recheck:
         for (i = 0; i < MAX_SERVER_COUNT; i++) {
             if (entry->ack[i].msg_vs.view_id == next.view_id && entry->ack[i].msg_vs.req_id == next.req_id)
@@ -154,11 +172,11 @@ recheck:
             while (entry->msg_vs.req_id > comp->highest_committed_vs->req_id + 1);
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
             
-            if (comp->measure_latency)
-            {
+#ifdef MEASURE_LATENCY
                 clock_add(clock_list);
                 clock_display(comp->sys_log_file, clock_list);
-            }
+#endif
+
         }else{
             goto recheck;
         }
@@ -169,7 +187,7 @@ recheck:
         pthread_mutex_lock(&comp->lock);
 
         long output_idx = *(long*)data / CHECK_PERIOD - 1;
-        entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type, clt_id);
+        dare_log_entry_t *entry = log_append_entry(SRV_DATA->log, sizeof(long), &output_idx, NULL, comp->node_id, NULL, type, clt_id);
         listNode *node = listIndex(output_handler.output_list, output_idx);
         entry->ack[comp->node_id].hash = *(uint64_t*)listNodeValue(node);
         entry->ack[comp->node_id].node_id = comp->node_id;
@@ -208,14 +226,6 @@ handle_submit_req_exit:
     return 0;
 }
 
-int consensus_submit_request(struct consensus_component_t* comp,size_t data_size,void* data,output_peer_t *output_peers, uint8_t type, int clt_id){
-    if(LEADER==comp->my_role){
-       return leader_handle_submit_req(comp,data_size,data,output_peers,type,clt_id);
-    }else{
-        return 0;
-    }
-}
-
 void *handle_accept_req(void* arg)
 {
     consensus_component* comp = arg;
@@ -233,9 +243,11 @@ void *handle_accept_req(void* arg)
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
             if (entry->type == P_SEND || entry->type == P_CONNECT || entry->type == P_CLOSE)//TODO atmoic opeartion
             {
+
+#ifdef MEASURE_LATENCY
                 list *clock_list = clock_init();
-                if (comp->measure_latency)
-                    clock_add(clock_list);
+                clock_add(clock_list);
+#endif
 
                 if(entry->msg_vs.view_id < comp->cur_view->view_id){
                 // TODO
@@ -283,11 +295,12 @@ void *handle_accept_req(void* arg)
                     }
                     *(comp->highest_committed_vs) = entry->req_canbe_exed;
                 }
-                if (comp->measure_latency)
-                {
+
+#ifdef MEASURE_LATENCY
                     clock_add(clock_list);
                     clock_display(comp->sys_log_file, clock_list);
-                }
+#endif
+                    
             }
             if (entry->type == P_OUTPUT)
             {

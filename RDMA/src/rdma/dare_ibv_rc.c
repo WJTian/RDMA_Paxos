@@ -438,7 +438,7 @@ static int rc_qp_rtr_to_rts(dare_ib_ep_t *ep)
 int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, enum ibv_wr_opcode opcode, rem_mem_t rm)
 {
     int rc;
-    uint32_t *send_count_ptr;
+
     dare_ib_ep_t *ep;
     struct ibv_sge sg;
     struct ibv_send_wr wr;
@@ -446,7 +446,10 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
 
     /* Define some temporary variables */
     ep = (dare_ib_ep_t*)SRV_DATA->config.servers[server_id].ep;
-    send_count_ptr = &(ep->rc_ep.rc_qp.send_count);
+
+#ifdef SELECTIVE_SIGNALING
+    uint32_t *send_count_ptr = &(ep->rc_ep.rc_qp.send_count);
+#endif
 
     memset(&sg, 0, sizeof(sg));
     sg.addr   = (uint64_t)buf;
@@ -458,6 +461,7 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
     wr.num_sge    = 1;
     wr.opcode     = opcode;
 
+#ifdef SELECTIVE_SIGNALING
     if((*send_count_ptr & S_DEPTH_) == 0) {
         wr.send_flags |= IBV_SEND_SIGNALED; /* Specifying IBV_SEND_SIGNALED in wr.send_flags indicates that we want completion notification for this send request */
     }
@@ -465,6 +469,7 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
     {
         poll_cq(1, ep->rc_ep.rc_cq.cq);
     }
+#endif
 
     if (IBV_WR_RDMA_WRITE == opcode) {
         if (len <= IBDEV->rc_max_inline_data) {
@@ -480,7 +485,9 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
             strerror(rc), rc == EINVAL ? "EINVAL" : rc == ENOMEM ? "ENOMEM" : rc == EFAULT ? "EFAULT" : "UNKNOWN");
     }
 
+#ifdef SELECTIVE_SIGNALING
     (*send_count_ptr)++;
+#endif
 
     return 0;
 }

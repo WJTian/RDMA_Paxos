@@ -10,10 +10,6 @@ typedef struct peer_t{
 	size_t sock_len;
 }peer;
 
-typedef struct node_config_t{
-	int measure_latency;
-}node_config;
-
 typedef void (*user_cb)(db_key_type index,void* arg);
 
 typedef struct node_t{
@@ -29,8 +25,6 @@ typedef struct node_t{
 	// replica group
 	uint32_t group_size;
 	peer* peer_pool;
-
-	node_config config;
 
 	//databse part
 	char* db_name;

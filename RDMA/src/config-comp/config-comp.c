@@ -24,16 +24,6 @@ int consensus_read_config(node* cur_node,const char* config_path){
 		goto goto_config_error;
 	}
 
-	config_setting_t *consensus_global_config = NULL;
-    consensus_global_config = config_lookup(&config_file,"consensus_global_config");
-    
-    if(NULL!=consensus_global_config){
-        int measure_latency;
-        if(config_setting_lookup_int(consensus_global_config,"measure_latency",&measure_latency)){
-            cur_node->config.measure_latency = measure_latency;
-        }
-    }
-
 	config_setting_t *nodes_config;
 	nodes_config = config_lookup(&config_file,"consensus_config");
 

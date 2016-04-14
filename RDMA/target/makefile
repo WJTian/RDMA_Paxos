@@ -12,7 +12,7 @@ RM := rm -rf
 -include src/db/subdir.mk
 -include src/consensus/subdir.mk
 -include src/replica-sys/subdir.mk
--include src/proxy/subdir.mk
+-include src/ev_mgr/subdir.mk
 -include src/config-comp/subdir.mk
 -include src/rdma/subdir.mk
 -include src/output/subdir.mk

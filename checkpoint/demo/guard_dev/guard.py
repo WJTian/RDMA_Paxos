@@ -48,7 +48,7 @@ import os
 import tempfile
 import zipfile
 import shutil
-
+import string
 
 # They are global variables, and will be initialised in init()
 #=================
@@ -60,8 +60,11 @@ AIM_PID=-1
 SELF_ID=-1 
 # Dir for storing checkpoint zip files.
 STORE_BASE="/tmp/checkpoint_store"
+STORE_UPPER="/tmp"
 # kill cmd 
 KILL_CMD="pkill redis-server"
+# RSYNC cmd
+RSYNC_CMD="rsync -aP --delete %s hkucs@10.22.1.2:%s ; rsync -aP --delete %s hkucs@10.22.1.3:%s"%(STORE_BASE,STORE_UPPER,STORE_BASE,STORE_UPPER)
 #=================
 # The IP:PORT I am listening for service.
 BIND_HOST="0.0.0.0"
@@ -203,6 +206,9 @@ def inner_checkpoint(node_id,round_id):
 		zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
 		print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
 		shutil.rmtree(tmpDir)
+		#rsync zip file to others
+		print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
+		subprocess.call(RSYNC_CMD,shell=True)
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
 	return
@@ -227,6 +233,7 @@ def inner_restore(node_id,round_id):
 		cmd="/sbin/criu restore -v4 -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
 		subprocess.call(cmd,shell=True)
+		shutil.rmtree(tmpDir)
 	return 
 
 def inner_service(cmd,node_id,round_id):

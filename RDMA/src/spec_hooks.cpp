@@ -96,7 +96,7 @@ extern "C" int __libc_start_main(
 
 	saved_fini_func = (fini_type)rtld_fini_func;
 
-	const char* target = "redis";
+	const char* target = "server";
 	if (NULL != strstr(argv[0], target))
 	{
 		ret = orig_func((void*)my_main, argc, (char**)(&args), (fnptr_type)tern_init_func, (fnptr_type)fini_func, rtld_fini_func, stack_end);

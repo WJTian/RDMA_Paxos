@@ -61,10 +61,4 @@ typedef enum mgr_action_t{
     P_OUTPUT=4,
 }mgr_action;
 
-#define MY_HASH_SET(value,hash_map) do{ \
-    HASH_ADD(hh,hash_map,key,sizeof(hk_t),value);}while(0)
-
-#define MY_HASH_GET(key,hash_map,ret) do{\
- HASH_FIND(hh,hash_map,key,sizeof(hk_t),ret);}while(0) 
-
 #endif

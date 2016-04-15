@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <error.h>
 #include <errno.h>
 #include <ctype.h>

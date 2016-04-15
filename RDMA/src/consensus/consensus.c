@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "../include/consensus/consensus.h"
 #include "../include/consensus/consensus-msg.h"
 
@@ -10,6 +11,7 @@
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
 #define MEASURE_LATENCY
+#define USE_SPIN_LOCK
 
 typedef enum request_type_t{
 	P_CONNECT=1,
@@ -34,8 +36,10 @@ typedef struct consensus_component_t{ con_role my_role;
     view_stamp* highest_committed_vs;
 
     db* db_ptr;
-    
+
     pthread_mutex_t lock;
+    pthread_spinlock_t spinlock;
+
     user_cb ucb;
     void* up_para;
 }consensus_component;
@@ -71,7 +75,11 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FI
         comp->highest_to_commit_vs->view_id = 1;
         comp->highest_to_commit_vs->req_id = 0;
 
+#ifdef USE_SPIN_LOCK
+        pthread_spin_init(&comp->spinlock, PTHREAD_PROCESS_PRIVATE);
+#else
         pthread_mutex_init(&comp->lock, NULL);
+#endif
         
         init_output();
 
@@ -109,7 +117,12 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
         clock_add(&c_k);
 #endif
 
+
+#ifdef USE_SPIN_LOCK
+        pthread_spin_lock(&comp->spinlock);
+#else
         pthread_mutex_lock(&comp->lock);
+#endif
 
         view_stamp next = get_next_view_stamp(comp);
 
@@ -131,7 +144,11 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
         entry->req_canbe_exed.view_id = comp->highest_committed_vs->view_id;
         entry->req_canbe_exed.req_id = comp->highest_committed_vs->req_id;
 
+#ifdef USE_SPIN_LOCK
+        pthread_spin_unlock(&comp->spinlock);
+#else
         pthread_mutex_unlock(&comp->lock);
+#endif
         
         if (data != NULL)
             memcpy(entry->data,data,data_size);
@@ -192,6 +209,15 @@ handle_submit_req_exit:
     return 0;
 }
 
+static void set_affinity(int core_id)
+{
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0)
+        fprintf(stderr, "pthread_setaffinity_np failed\n");
+}
+
 void *handle_accept_req(void* arg)
 {
     consensus_component* comp = arg;
@@ -201,6 +227,8 @@ void *handle_accept_req(void* arg)
     db_key_type index;
     
     dare_log_entry_t* entry;
+
+    set_affinity(1);
 
     for (;;)
     {

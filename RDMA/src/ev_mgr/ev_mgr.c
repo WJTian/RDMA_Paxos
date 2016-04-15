@@ -18,7 +18,7 @@ void leader_on_accept(int fd, event_manager* ev_mgr)
 
         new_conn->key = fd;
         new_conn->ev_mgr = ev_mgr;
-        MY_HASH_SET(new_conn,ev_mgr->hash_map);
+        HASH_ADD_INT(ev_mgr->hash_map, key, new_conn);
 
         rsm_op(ev_mgr->con_node, 0, NULL, NULL, P_CONNECT, fd);
     }
@@ -35,7 +35,7 @@ int *replica_on_accept(event_manager* ev_mgr)
         size_t data_size;
         retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
         socket_pair* ret = NULL;
-        MY_HASH_GET(&retrieve_data->clt_id,ev_mgr->hash_map,ret);
+        HASH_FIND_INT(ev_mgr->hash_map, &retrieve_data->clt_id, ret);
         return &ret->s_p;
     }
 
@@ -48,11 +48,11 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
     if (ev_mgr->node_id == leader_id)
     {
         socket_pair* ret = NULL;
-        MY_HASH_GET(&fd,ev_mgr->hash_map,ret);
+        HASH_FIND_INT(ev_mgr->hash_map, &fd, ret);
         if (ret == NULL)
             goto mgr_on_close_exit;
 
-        ret->key = -1;
+        HASH_DEL(ev_mgr->hash_map, ret);
 
         rsm_op(ev_mgr->con_node, 0, NULL, NULL, P_CLOSE, fd);
     }
@@ -120,18 +120,20 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, output_pe
 static void do_action_close(int clt_id,void* arg){
     event_manager* ev_mgr = arg;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&clt_id,ev_mgr->hash_map,ret);
+    HASH_FIND_INT(ev_mgr->hash_map,&clt_id,ret);
     if(NULL==ret){
         goto do_action_close_exit;
     }else{      
         if(ret->p_s!=NULL){
             if (close(*ret->p_s))
                 fprintf(stderr, "failed to close socket\n");
-            ret->key = -1;
+
             listNode *node = listSearchKey(ev_mgr->excluded_fd, (void*)ret->p_s);
             if (node == NULL)
                 fprintf(stderr, "failed to find the matching key\n");
             listDelNode(ev_mgr->excluded_fd, node);
+
+            HASH_DEL(ev_mgr->hash_map, ret);
         }
     }
 do_action_close_exit:
@@ -142,13 +144,13 @@ static void do_action_connect(int clt_id,void* arg){
     
     event_manager* ev_mgr = arg;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&clt_id,ev_mgr->hash_map,ret);
+    HASH_FIND_INT(ev_mgr->hash_map, &clt_id, ret);
     if(NULL==ret){
         ret = malloc(sizeof(socket_pair));
         memset(ret,0,sizeof(socket_pair));
         ret->key = clt_id;
         ret->ev_mgr = ev_mgr;
-        MY_HASH_SET(ret,ev_mgr->hash_map);
+        HASH_ADD_INT(ev_mgr->hash_map, key, ret);
     }
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
@@ -173,7 +175,7 @@ static void do_action_connect(int clt_id,void* arg){
 static void do_action_send(request_record *retrieve_data,void* arg){
     event_manager* ev_mgr = arg;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&retrieve_data->clt_id,ev_mgr->hash_map,ret);
+    HASH_FIND_INT(ev_mgr->hash_map, &retrieve_data->clt_id, ret);
 
     if(NULL==ret){
         goto do_action_send_exit;
@@ -190,7 +192,7 @@ static void do_action_send(request_record *retrieve_data,void* arg){
             my_aiocb.aio_buf = retrieve_data->data;
             aio_write(&my_aiocb);
 #else
-            write(*ret->p_s, retrieve_data->data, retrieve_data->data_size);
+            write(*ret->p_s, retrieve_data->data, retrieve_data->data_size - 1);
 #endif
         }
     }
@@ -309,6 +311,8 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
         err_log("EVENT MANAGER : Cannot create excluded descriptor list.\n");
         goto mgr_exit_error;
     }
+
+    ev_mgr->hash_map = NULL;
 
     ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,ev_mgr->db_ptr,ev_mgr);
 

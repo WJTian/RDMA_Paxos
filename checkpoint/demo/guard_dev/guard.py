@@ -229,7 +229,7 @@ def inner_checkpoint(node_id,round_id):
 	except Exception as e:
 		pass
 	if tmpDir:
-		cmd="/sbin/criu dump -v4 --leave-running -D %s -t %d"%(tmpDir,AIM_PID)
+		cmd="/sbin/criu dump -v4 --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		subprocess.call(cmd,shell=True)
 		zipBaseName = getNextBaseName() # without extName
@@ -260,7 +260,7 @@ def inner_restore(node_id,round_id):
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
-		cmd="/sbin/criu restore -v4 -d -D %s"%(tmpDir)
+		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
 		subprocess.call(cmd,shell=True)
 		shutil.rmtree(tmpDir)

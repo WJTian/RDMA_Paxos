@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # before dump
-REDIS_CLI=./apps/redis-cli
+REDIS_CLI="./apps/redis-cli -h 127.0.0.1 -p 26379"
 
 ps -elf | grep redis
 echo "set key 1" | $REDIS_CLI 

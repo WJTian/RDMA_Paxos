@@ -11,7 +11,7 @@ sleep 3
 app_pid=`cat ./redis.pid`
 ls -la /proc/$app_pid/fd
 #python guard.py node_id pid rdma.cfg
-cfg_path=/home/jingyu/code/rdma_master/RDMA_Paxos/RDMA/target/nodes.local.cfg
+cfg_path=./nodes.local.cfg
 self_id=0
 
 python guard.py $self_id $app_pid $cfg_path

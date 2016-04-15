@@ -49,7 +49,7 @@ import tempfile
 import zipfile
 import shutil
 import string
-
+import pylibconfig2 as cfg
 # They are global variables, and will be initialised in init()
 #=================
 # The location of RDMA configuration file path, I need parse ip and port, and then find PID by lsof
@@ -64,7 +64,9 @@ STORE_UPPER="/tmp"
 # kill cmd 
 KILL_CMD="pkill redis-server"
 # RSYNC cmd
-RSYNC_CMD="rsync -aP --delete %s hkucs@10.22.1.2:%s ; rsync -aP --delete %s hkucs@10.22.1.3:%s"%(STORE_BASE,STORE_UPPER,STORE_BASE,STORE_UPPER)
+RSYNC_CMD=""
+# user name
+RSYNC_USER=""
 #=================
 # The IP:PORT I am listening for service.
 BIND_HOST="0.0.0.0"
@@ -88,6 +90,33 @@ DEF_INDEX="""<!DOCTYPE html>
 </html>
 """
 
+def cfg_init(fname):
+	global RSYNC_CMD,RSYNC_USER
+	RSYNC_USER = os.getlogin()
+	fsize = 4096 # max size of a cfg
+	if os.path.exists(fname):
+		f = open(fname,'r')
+		buff = f.read(fsize)	
+		conf = cfg.Config(buff)
+		node_info = conf.consensus_config
+		#print "[cfg_init] ", node_info	
+		# update rsync
+		try:
+			self_conf = node_info[SELF_ID]	
+			self_ip = self_conf.ip_address
+			#"rsync -aP --delete %s hkucs@10.22.1.2:%s ; rsync -aP --delete %s hkucs@10.22.1.3:%s"%(STORE_BASE,STORE_UPPER,STORE_BASE,STORE_UPPER)
+			rsync_option="rsync -aP --delete "
+			RSYNC_CMD=""
+			for item in node_info:
+				if item.ip_address != self_ip: # replicas
+					RSYNC_CMD=RSYNC_CMD + rsync_option + STORE_BASE +" %s@%s:%s ; "%(RSYNC_USER,item.ip_address,STORE_UPPER)	
+		except Exception as e:
+			print "[cfg_init] configuration error. exit"
+			exit()
+		print "[cfg_init] rsync_cmd: %s"%(RSYNC_CMD)
+	else:
+		print "[cfg_init] %s is not found. I will exit."%(fname)
+
 # The init function will parse $RDMA_CFG
 def init():
 	global SELF_ID, AIM_PID, RDMA_CFG
@@ -104,6 +133,7 @@ def init():
 		shutil.rmtree(STORE_BASE)
 	else: # dir is not existed, we need create one
 		os.mkdir(STORE_BASE)
+	cfg_init(RDMA_CFG)
 
 # default handler of index.html
 def index(environ, start_response):

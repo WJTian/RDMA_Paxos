@@ -21,4 +21,4 @@ src/config-comp \
 src/rdma \
 src/output \
 src/replica-sys \
-src/proxy \
+src/ev_mgr \

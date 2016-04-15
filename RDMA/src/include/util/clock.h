@@ -1,11 +1,14 @@
 #ifndef CLOCK_H
 #define CLOCK_H
-#include "../output/adlist.h"
 #include "./common-header.h"
 
-list *clock_init();
-void clock_add(list *clock_list);
-void clock_display(FILE *output, list *clock_list);
+typedef struct clock_handler_t {
+	struct timespec clocks[4];
+	int counter;
+}clock_handler;
 
+void clock_init(clock_handler *c_k);
+void clock_add(clock_handler *c_k);
+void clock_display(FILE* output, clock_handler *c_k);
 
 #endif 

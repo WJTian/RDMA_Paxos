@@ -16,11 +16,11 @@ typedef enum con_role_t{
     SECONDARY = 1,
 }con_role;
 
-struct consensus_component_t* init_consensus_comp(struct node_t*,int,uint32_t,FILE*,int,int,
+struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,FILE*,int,int,
         const char*,void*,int,
         view*,view_stamp*,view_stamp*,view_stamp*,user_cb,void*);
 
-int consensus_submit_request(struct consensus_component_t*,size_t,void*,output_peer_t*,uint8_t type,int clt_id);
+int leader_handle_submit_req(struct consensus_component_t*,size_t,void*,output_peer_t*,uint8_t,int);
 
 void *handle_accept_req(void* arg);
 

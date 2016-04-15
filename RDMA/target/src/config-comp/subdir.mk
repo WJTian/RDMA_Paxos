@@ -1,11 +1,11 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../src/config-comp/config-comp.c \
-../src/config-comp/config-proxy.c 
+../src/config-comp/config-mgr.c 
 
 OBJS += \
 ./src/config-comp/config-comp.o \
-./src/config-comp/config-proxy.o 
+./src/config-comp/config-mgr.o 
 
 
 # Each subdirectory must supply rules for building sources it contributes

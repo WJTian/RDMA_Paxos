@@ -1,7 +1,6 @@
-#include "../include/proxy/proxy.h"
-#include "../include/config-comp/config-proxy.h"
+#include "../include/ev_mgr/ev_mgr.h"
+#include "../include/config-comp/config-mgr.h"
 #include "../include/replica-sys/node.h"
-
 #include "../include/rdma/dare.h"
 
 #include <fcntl.h>
@@ -9,76 +8,69 @@
 #include <sys/stat.h>
 #include <aio.h>
 
-void proxy_on_accept(int fd, proxy_node* proxy)
+void leader_on_accept(int fd, event_manager* ev_mgr)
 {
-    uint32_t leader_id = get_leader_id(proxy->con_node);
-    if (proxy->node_id == leader_id)
+    uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+    if (ev_mgr->node_id == leader_id)
     {
         socket_pair* new_conn = malloc(sizeof(socket_pair));
         memset(new_conn,0,sizeof(socket_pair));
 
         new_conn->key = fd;
-        new_conn->proxy = proxy;
-        MY_HASH_SET(new_conn,proxy->hash_map);
+        new_conn->ev_mgr = ev_mgr;
+        MY_HASH_SET(new_conn,ev_mgr->hash_map);
 
-        rsm_op(proxy->con_node, 0, NULL, NULL, P_CONNECT, fd);
+        rsm_op(ev_mgr->con_node, 0, NULL, NULL, P_CONNECT, fd);
     }
 
     return;
 }
 
-int *replica_on_accept(proxy_node* proxy)
+int *replica_on_accept(event_manager* ev_mgr)
 {
-    uint32_t leader_id = get_leader_id(proxy->con_node);
-    if (proxy->node_id != leader_id)
+    uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+    if (ev_mgr->node_id != leader_id)
     {
         request_record* retrieve_data = NULL;
         size_t data_size;
-        retrieve_record(proxy->db_ptr, sizeof(db_key_type), &proxy->cur_rec, &data_size, (void**)&retrieve_data);
+        retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
         socket_pair* ret = NULL;
-        MY_HASH_GET(&retrieve_data->clt_id,proxy->hash_map,ret);
+        MY_HASH_GET(&retrieve_data->clt_id,ev_mgr->hash_map,ret);
         return &ret->s_p;
     }
 
     return NULL;
 }
 
-void proxy_on_close(int fd, proxy_node* proxy)
+void mgr_on_close(int fd, event_manager* ev_mgr)
 {
-    uint32_t leader_id = get_leader_id(proxy->con_node);
-    if (proxy->node_id == leader_id)
+    uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+    if (ev_mgr->node_id == leader_id)
     {
         socket_pair* ret = NULL;
-        MY_HASH_GET(&fd,proxy->hash_map,ret);
+        MY_HASH_GET(&fd,ev_mgr->hash_map,ret);
+        if (ret == NULL)
+            goto mgr_on_close_exit;
+
         ret->key = -1;
 
-        rsm_op(proxy->con_node, 0, NULL, NULL, P_CLOSE, fd);
+        rsm_op(ev_mgr->con_node, 0, NULL, NULL, P_CLOSE, fd);
     }
-
+mgr_on_close_exit:
     return;
 }
 
-void proxy_on_check(int fd, const void* buf, size_t ret, proxy_node* proxy)
+void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
-    if (proxy->check_output && listSearchKey(proxy->excluded_fd, (void*)&fd) == NULL)
+    if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
         pthread_mutex_lock(&output_handler.lock);
-        store_output(buf, ret);
-        long output_idx = output_handler.count;
         pthread_mutex_unlock(&output_handler.lock);
 
-        uint32_t leader_id = get_leader_id(proxy->con_node);
-        if (leader_id == proxy->node_id && output_idx % CHECK_PERIOD == 0)
+        uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+        if (leader_id == ev_mgr->node_id)
         {
-            output_peer_t output_peers[MAX_SERVER_COUNT];
-            client_side_on_read(proxy, &output_idx, sizeof(long), output_peers, fd);
-            if (output_idx != CHECK_PERIOD)
-            {
-                uint32_t group_size = get_group_size(proxy->con_node);
-                do_decision(output_peers, group_size);
-            }
         }
-
     }
 }
 
@@ -111,24 +103,24 @@ static int keep_alive(int fd) {
     return 0;
 }
 
-void client_side_on_read(proxy_node* proxy, void *buf, size_t ret, output_peer_t* output_peers, int fd){
-    uint32_t leader_id = get_leader_id(proxy->con_node);
-    if (proxy->node_id == leader_id)
+void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, output_peer_t* output_peers, int fd){
+    uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+    if (ev_mgr->node_id == leader_id)
     {
         struct stat sb;
         fstat(fd, &sb);
-        if ((sb.st_mode & S_IFMT) == S_IFSOCK && proxy->rsm != 0 && listSearchKey(proxy->excluded_fd, &fd) == NULL)
+        if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0 && listSearchKey(ev_mgr->excluded_fd, &fd) == NULL)
         {
-            rsm_op(proxy->con_node, ret, buf, output_peers, P_SEND, fd);
+            rsm_op(ev_mgr->con_node, ret, buf, output_peers, P_SEND, fd);
         }
     }
     return;
 };
 
 static void do_action_close(int clt_id,void* arg){
-    proxy_node* proxy = arg;
+    event_manager* ev_mgr = arg;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&clt_id,proxy->hash_map,ret);
+    MY_HASH_GET(&clt_id,ev_mgr->hash_map,ret);
     if(NULL==ret){
         goto do_action_close_exit;
     }else{      
@@ -136,10 +128,10 @@ static void do_action_close(int clt_id,void* arg){
             if (close(*ret->p_s))
                 fprintf(stderr, "failed to close socket\n");
             ret->key = -1;
-            listNode *node = listSearchKey(proxy->excluded_fd, (void*)ret->p_s);
+            listNode *node = listSearchKey(ev_mgr->excluded_fd, (void*)ret->p_s);
             if (node == NULL)
                 fprintf(stderr, "failed to find the matching key\n");
-            listDelNode(proxy->excluded_fd, node);
+            listDelNode(ev_mgr->excluded_fd, node);
         }
     }
 do_action_close_exit:
@@ -148,15 +140,15 @@ do_action_close_exit:
 
 static void do_action_connect(int clt_id,void* arg){
     
-    proxy_node* proxy = arg;
+    event_manager* ev_mgr = arg;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&clt_id,proxy->hash_map,ret);
+    MY_HASH_GET(&clt_id,ev_mgr->hash_map,ret);
     if(NULL==ret){
         ret = malloc(sizeof(socket_pair));
         memset(ret,0,sizeof(socket_pair));
         ret->key = clt_id;
-        ret->proxy = proxy;
-        MY_HASH_SET(ret,proxy->hash_map);
+        ret->ev_mgr = ev_mgr;
+        MY_HASH_SET(ret,ev_mgr->hash_map);
     }
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
@@ -164,11 +156,11 @@ static void do_action_connect(int clt_id,void* arg){
 #ifndef AIO
         SetBlocking(*fd, 0);
 #endif
-        listAddNodeTail(proxy->excluded_fd, (void*)fd);
+        listAddNodeTail(ev_mgr->excluded_fd, (void*)fd);
 
-        connect(*fd, (struct sockaddr*)&proxy->sys_addr.s_addr,proxy->sys_addr.s_sock_len);
+        connect(*fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
         ret->p_s = fd;
-        SYS_LOG(proxy, "Proxy sets up socket connection (id %d) with server application.\n", ret->key);
+        SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection (id %d) with server application.\n", ret->key);
 
         int enable = 1;
         if(setsockopt(*fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
@@ -179,9 +171,9 @@ static void do_action_connect(int clt_id,void* arg){
 }
 
 static void do_action_send(request_record *retrieve_data,void* arg){
-    proxy_node* proxy = arg;
+    event_manager* ev_mgr = arg;
     socket_pair* ret = NULL;
-    MY_HASH_GET(&retrieve_data->clt_id,proxy->hash_map,ret);
+    MY_HASH_GET(&retrieve_data->clt_id,ev_mgr->hash_map,ret);
 
     if(NULL==ret){
         goto do_action_send_exit;
@@ -189,7 +181,7 @@ static void do_action_send(request_record *retrieve_data,void* arg){
         if(NULL==ret->p_s){
             goto do_action_send_exit;
         }else{
-            SYS_LOG(proxy, "Proxy sends request to the real server.\n");
+            SYS_LOG(ev_mgr, "Event manager sends request to the real server.\n");
 #ifdef AIO
             struct aiocb my_aiocb;
             bzero((void*)&my_aiocb, sizeof(struct aiocb));
@@ -207,16 +199,16 @@ do_action_send_exit:
 }
 
 static void update_state(db_key_type index,void* arg){
-    proxy_node* proxy = arg;
+    event_manager* ev_mgr = arg;
 
     request_record* retrieve_data = NULL;
     size_t data_size;
-    retrieve_record(proxy->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
-    proxy->cur_rec = index;
+    retrieve_record(ev_mgr->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
+    ev_mgr->cur_rec = index;
 
     FILE* output = NULL;
-    if(proxy->req_log){
-        output = proxy->req_log_file;
+    if(ev_mgr->req_log){
+        output = ev_mgr->req_log_file;
     }
     switch(retrieve_data->type){
         case P_CONNECT:
@@ -248,22 +240,22 @@ int comp(void *ptr, void *key)
     return (*(int*)ptr == *(int*)key) ? 1 : 0;
 }
 
-proxy_node* proxy_init(node_id_t node_id, const char* config_path, const char* log_path){
+event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* log_path){
     
-    proxy_node* proxy = (proxy_node*)malloc(sizeof(proxy_node));
+    event_manager* ev_mgr = (event_manager*)malloc(sizeof(event_manager));
 
-    if(NULL==proxy){
-        err_log("PROXY : Cannot Malloc Memory For The Proxy.\n");
-        goto proxy_exit_error;
+    if(NULL==ev_mgr){
+        err_log("EVENT MANAGER : Cannot Malloc Memory For The ev_mgr.\n");
+        goto mgr_exit_error;
     }
 
-    memset(proxy, 0, sizeof(proxy_node));
+    memset(ev_mgr, 0, sizeof(event_manager));
 
-    proxy->node_id = node_id;
+    ev_mgr->node_id = node_id;
 
-    if(proxy_read_config(proxy,config_path)){
-        err_log("PROXY : Configuration File Reading Error.\n");
-        goto proxy_exit_error;
+    if(mgr_read_config(ev_mgr,config_path)){
+        err_log("EVENT MANAGER : Configuration File Reading Error.\n");
+        goto mgr_exit_error;
     }
 
     int build_log_ret = 0;
@@ -272,7 +264,7 @@ proxy_node* proxy_init(node_id_t node_id, const char* config_path, const char* l
     }else{
         if((build_log_ret=mkdir(log_path,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))!=0){
             if(errno!=EEXIST){
-                err_log("PROXY : Log Directory Creation Failed,No Log Will Be Recorded.\n");
+                err_log("EVENT MANAGER : Log Directory Creation Failed,No Log Will Be Recorded.\n");
             }else{
                 build_log_ret = 0;
             }
@@ -283,55 +275,55 @@ proxy_node* proxy_init(node_id_t node_id, const char* config_path, const char* l
             char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
             memset(sys_log_path,0,sizeof(char)*strlen(log_path)+50);
             if(NULL!=sys_log_path){
-                sprintf(sys_log_path,"%s/node-%u-proxy-sys.log",log_path,proxy->node_id);
-                proxy->sys_log_file = fopen(sys_log_path,"w");
+                sprintf(sys_log_path,"%s/node-%u-mgr-sys.log",log_path,ev_mgr->node_id);
+                ev_mgr->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
             }
-            if(NULL==proxy->sys_log_file && (proxy->sys_log || proxy->stat_log)){
-                err_log("PROXY : System Log File Cannot Be Created.\n");
+            if(NULL==ev_mgr->sys_log_file && (ev_mgr->sys_log || ev_mgr->stat_log)){
+                err_log("EVENT MANAGER : System Log File Cannot Be Created.\n");
             }
             char* req_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
             memset(req_log_path,0,sizeof(char)*strlen(log_path)+50);
             if(NULL!=req_log_path){
-                sprintf(req_log_path,"%s/node-%u-proxy-req.log",log_path,proxy->node_id);
-                proxy->req_log_file = fopen(req_log_path,"w");
+                sprintf(req_log_path,"%s/node-%u-mgr-req.log",log_path,ev_mgr->node_id);
+                ev_mgr->req_log_file = fopen(req_log_path,"w");
                 free(req_log_path);
             }
-            if(NULL==proxy->req_log_file && proxy->req_log){
-                err_log("PROXY : Client Request Log File Cannot Be Created.\n");
+            if(NULL==ev_mgr->req_log_file && ev_mgr->req_log){
+                err_log("EVENT MANAGER : Request Log File Cannot Be Created.\n");
             }
     }
 
-    proxy->db_ptr = initialize_db(proxy->db_name,0);
+    ev_mgr->db_ptr = initialize_db(ev_mgr->db_name,0);
 
-    if(proxy->db_ptr==NULL){
-        err_log("PROXY : Cannot Set Up The Database.\n");
-        goto proxy_exit_error;
+    if(ev_mgr->db_ptr==NULL){
+        err_log("EVENT MANAGER : Cannot Set Up The Database.\n");
+        goto mgr_exit_error;
     }
 
-    proxy->excluded_fd = listCreate(); /* On error, NULL is returned. Otherwise the pointer to the new list. */
-    proxy->excluded_fd->match = &comp;
+    ev_mgr->excluded_fd = listCreate(); /* On error, NULL is returned. Otherwise the pointer to the new list. */
+    ev_mgr->excluded_fd->match = &comp;
 
-    if (proxy->excluded_fd == NULL)
+    if (ev_mgr->excluded_fd == NULL)
     {
-        err_log("PROXY : Cannot create excluded descriptor list.\n");
-        goto proxy_exit_error;
+        err_log("EVENT MANAGER : Cannot create excluded descriptor list.\n");
+        goto mgr_exit_error;
     }
 
-    proxy->con_node = system_initialize(node_id,proxy->excluded_fd,config_path,log_path,update_state,proxy->db_ptr,proxy);
+    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,ev_mgr->db_ptr,ev_mgr);
 
-    if(NULL==proxy->con_node){
-        err_log("PROXY : Cannot Initialize Consensus Component.\n");
-        goto proxy_exit_error;
+    if(NULL==ev_mgr->con_node){
+        err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");
+        goto mgr_exit_error;
     }
 
-	return proxy;
+	return ev_mgr;
 
-proxy_exit_error:
-    if(NULL!=proxy){
-        if(NULL!=proxy->con_node){
+mgr_exit_error:
+    if(NULL!=ev_mgr){
+        if(NULL!=ev_mgr->con_node){
         }
-        free(proxy);
+        free(ev_mgr);
     }
     return NULL;
 }

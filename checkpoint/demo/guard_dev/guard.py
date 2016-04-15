@@ -50,6 +50,8 @@ import zipfile
 import shutil
 import string
 import pylibconfig2 as cfg
+import urllib2
+
 # They are global variables, and will be initialised in init()
 #=================
 # The location of RDMA configuration file path, I need parse ip and port, and then find PID by lsof
@@ -63,10 +65,12 @@ STORE_BASE="/tmp/checkpoint_store"
 STORE_UPPER="/tmp"
 # kill cmd 
 KILL_CMD="pkill redis-server"
+GETPID_CMD="ps -ef | grep  redis-server | grep -v grep | awk '{print $2}'"
 # RSYNC cmd
 RSYNC_CMD=""
 # user name
 RSYNC_USER=""
+NODE_INFO=None
 #=================
 # The IP:PORT I am listening for service.
 BIND_HOST="0.0.0.0"
@@ -91,7 +95,7 @@ DEF_INDEX="""<!DOCTYPE html>
 """
 
 def cfg_init(fname):
-	global RSYNC_CMD,RSYNC_USER
+	global RSYNC_CMD,RSYNC_USER,NODE_INFO
 	RSYNC_USER = os.getlogin()
 	fsize = 4096 # max size of a cfg
 	if os.path.exists(fname):
@@ -99,6 +103,7 @@ def cfg_init(fname):
 		buff = f.read(fsize)	
 		conf = cfg.Config(buff)
 		node_info = conf.consensus_config
+		NODE_INFO = node_info
 		#print "[cfg_init] ", node_info	
 		# update rsync
 		try:
@@ -243,8 +248,22 @@ def inner_checkpoint(node_id,round_id):
 		print "[inner_checkpoint]creat tmpDir failed."
 	return
 
+
+def reset_pid():
+	"""
+		criu may load checkpoint.zip from other machine. The pid will be changed after restore.
+	"""	
+	global AIM_PID 
+	try:
+		pid_str = subprocess.check_output(GETPID_CMD,shell=True)
+		pid = int(pid_str)  
+		AIM_PID = pid
+		print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
+	except Exception as e:
+		print "[reset_pid] Failed to get pid by cmd: %s"%(GETPID_CMD)
+	
 def inner_restore(node_id,round_id):
-	print "[inner_restore] criu will be used for restoring  at machine %d, at round %d"%(node_id,round_id)
+	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
 	# mkdir dump
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"
@@ -264,6 +283,7 @@ def inner_restore(node_id,round_id):
 		print "[inner_restore]cmd: %s"%(cmd)
 		subprocess.call(cmd,shell=True)
 		shutil.rmtree(tmpDir)
+		reset_pid()	
 	return 
 
 def inner_service(cmd,node_id,round_id):
@@ -279,15 +299,29 @@ def inner_service(cmd,node_id,round_id):
 	return
 
 def getIPbyID(node_id):
-	return "10.22.1.%d"%(node_id+1)	
-def getPortbyID(node_id):
-	return 12345
+	ret_ip="0.0.0.0"
+	if not NODE_INFO:
+		print "[getIPbyID] node info has not been init"
+		exit()
+	try:
+		ret_ip = NODE_INFO[node_id].ip_address
+	except Exception as e:
+		print "[getIPbyID] out of bound %d in %d"(node_id,len(NODE_INFO))
+	return	ret_ip 
 
+def getPortbyID(node_id):
+	return int(BIND_PORT) 
+
+def make_req(url):
+	content = urllib2.urlopen(url).read()
+	print "[make_req] ret:%s"%(content)
+	return 
 def route(cmd,node_id,round_id):
 	ip_str=getIPbyID(node_id)	
 	port_int=getPortbyID(node_id)
 	url = "http://%s:%d/%s?node_id=%d&round_id=%d"%(ip_str,port_int,cmd,node_id,round_id)
 	print "[route] url:%s"%(url)
+	make_req(url)
 	return
 
 # The handler for unix socket

@@ -1,4 +1,0 @@
-#!/bin/bash
-
-env LD_PRELOAD=./../../RDMA/target/interpose.so node_id=0 ./mongoose-server -I /home/wangcheng/Downloads/RDMA_Paxos-master/apps/apache/install-php/bin/php-cgi -p 7000 &
-

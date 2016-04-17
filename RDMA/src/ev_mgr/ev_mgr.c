@@ -6,7 +6,6 @@
 #include <fcntl.h>
 #include <netinet/tcp.h>
 #include <sys/stat.h>
-#include <aio.h>
 
 void leader_on_accept(int fd, event_manager* ev_mgr)
 {
@@ -36,6 +35,7 @@ int *replica_on_accept(event_manager* ev_mgr)
         retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
         socket_pair* ret = NULL;
         HASH_FIND_INT(ev_mgr->hash_map, &retrieve_data->clt_id, ret);
+        ret->accepted = 1;
         return &ret->s_p;
     }
 
@@ -74,7 +74,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     }
 }
 
-static int SetBlocking(int fd, int blocking) {
+static int set_blocking(int fd, int blocking) {
     int flags;
 
     if ((flags = fcntl(fd, F_GETFL)) == -1) {
@@ -155,19 +155,20 @@ static void do_action_connect(int clt_id,void* arg){
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
         *fd = socket(AF_INET, SOCK_STREAM, 0);
-#ifndef AIO
-        SetBlocking(*fd, 0);
-#endif
+
         listAddNodeTail(ev_mgr->excluded_fd, (void*)fd);
 
         connect(*fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
         ret->p_s = fd;
         SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection (id %d) with server application.\n", ret->key);
 
+        set_blocking(*fd, 0);
+        
         int enable = 1;
         if(setsockopt(*fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
             printf("TCP_NODELAY SETTING ERROR!\n");
         keep_alive(*fd);
+        while (!ret->accepted);
     }
     return;
 }
@@ -184,16 +185,7 @@ static void do_action_send(request_record *retrieve_data,void* arg){
             goto do_action_send_exit;
         }else{
             SYS_LOG(ev_mgr, "Event manager sends request to the real server.\n");
-#ifdef AIO
-            struct aiocb my_aiocb;
-            bzero((void*)&my_aiocb, sizeof(struct aiocb));
-            my_aiocb.aio_fildes = *ret->p_s;
-            my_aiocb.aio_nbytes = retrieve_data->data_size;
-            my_aiocb.aio_buf = retrieve_data->data;
-            aio_write(&my_aiocb);
-#else
             write(*ret->p_s, retrieve_data->data, retrieve_data->data_size - 1);
-#endif
         }
     }
 do_action_send_exit:

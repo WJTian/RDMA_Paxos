@@ -14,11 +14,10 @@ struct event_manager_t;
 
 typedef struct socket_pair_t{
     hk_t key;
-
     struct event_manager_t* ev_mgr;
     int* p_s;
     int s_p;
-
+    int accepted;
     UT_hash_handle hh;
 }socket_pair;
 

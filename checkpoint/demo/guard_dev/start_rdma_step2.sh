@@ -4,7 +4,7 @@ set -x
 
 ps -elf | grep redis
 
-self_id=0
+self_id=`cat node_id`
 cfg_path=./nodes.local.cfg
 app_pid=`ps -ef | grep  redis-server | grep -v grep | awk '{print $2}'`
 ls -la /proc/$app_pid/fd

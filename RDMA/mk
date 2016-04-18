@@ -15,14 +15,36 @@ LIBCONFIG_NAME=libconfig-${LIBCONFIG_VER}
 BDB_VER=5.1.29
 BDB_NAME=db-${BDB_VER}
 
+LIBEVENT_VER=2.0.22
+LIBEVENT_NAME=libevent-$LIBEVENT_VER-stable
+LIBEVENT_TAR=${LIBEVENT_NAME}.tar.gz
+LIBEVENT_URL=https://github.com/libevent/libevent/releases/download/release-2.0.22-stable/$LIBEVENT_TAR
+
+
 if [ ! -d "dep-lib" ];then
     mkdir dep-lib
 fi
 cd dep-lib
 
+if [ ! -f "$LIBEVENT_TAR" ]; then
+	wget $LIBEVENT_URL
+fi
+
+if [ ! -d "$LIBEVENT_NAME" ]; then
+	tar -xvf $LIBEVENT_TAR
+fi
+
+cd $LIBEVENT_NAME
+pwd
+./configure --prefix=${LIB_PREFIX}
+make
+make install;
+cd ..
+
 if [ ! -f "${LIBCONFIG_NAME}.tar.gz" ];then
     wget http://www.hyperrealm.com/libconfig/${LIBCONFIG_NAME}.tar.gz
 fi
+
 
 if [ ! -d "${LIBCONFIG_NAME}" ];then
     tar -xvf ${LIBCONFIG_NAME}.tar.gz

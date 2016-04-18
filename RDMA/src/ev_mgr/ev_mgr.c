@@ -7,6 +7,8 @@
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 
+volatile int g_checkpoint_flag = NO_DISCONNECTED;
+
 void leader_on_accept(int fd, event_manager* ev_mgr)
 {
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
@@ -192,6 +194,72 @@ do_action_send_exit:
     return;
 }
 
+//TODO declear g_checkpoint_flag
+
+// which is called by libevent
+// will modify g_checkpoint_flag
+// will be in the same thread with libevent
+// 0 is ok
+// 1 is rejected
+// -1 is error
+int disconnct_inner(){ 
+    if (NO_DISCONNECTED == g_checkpoint_flag){ // safe to modify 
+        g_checkpoint_flag = DISCONNECTED_REQUEST;
+        // wait for approve
+        while (DISCONNECTED_REQUEST == g_checkpoint_flag){ // until the state will be changed.
+            // do thing.  
+        }
+        if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
+            int ret = disconnect_RDMA(); // cheng's work
+            if (-1==ret){ // error
+                return ret;
+                //abort();
+            }
+            ret = disconnect_zookeeper(); // cheng'z work
+            if (-1 == ret){
+                return ret;
+                // abort();
+            }
+            // disconnection is ok
+            g_checkpoint_flag = NO_DISCONNECTED;
+            return ret;
+        }else if (NO_DISCONNECTED == g_checkpoint_flag){ // rejection
+            // rejected
+            return 1;
+        }else{
+            // bug
+        }
+    }else{
+
+    }
+    return 0;
+}
+
+int check_point_condtion()
+{
+    if (g_checkpoint_flag == NO_DISCONNECTED){
+        return 0;
+    }else if (g_checkpoint_flag == DISCONNECTED_REQUEST)
+    {
+        // return hash table size
+        if (size == 0)
+        {
+            g_checkpoint_flag = DISCONNECTED_APPROVE;
+            return 1;
+        } else
+        {
+            g_checkpoint_flag = NO_DISCONNECTED;
+            return 0;
+        }
+    } else {
+        // unknown
+        return 0;
+    }
+    
+}
+
+
+
 static void update_state(db_key_type index,void* arg){
     event_manager* ev_mgr = arg;
 
@@ -311,6 +379,12 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");
         goto mgr_exit_error;
+    }
+
+    pthread_t check_point_thread;
+    int ret = pthread_create(&check_point_thread, NULL,&check_point_thread_start,NULL); // please check return.
+    if (0!=ret){ // check return.
+
     }
 
 	return ev_mgr;

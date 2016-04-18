@@ -234,6 +234,11 @@ void *handle_accept_req(void* arg)
     {
         while(comp->cur_view->leader_id != comp->node_id)
         {
+            if (check_point_condtion())// cheng's work
+            {
+                return NULL;
+            }
+
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
             if (entry->data_size != 0)
             {

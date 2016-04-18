@@ -60,4 +60,12 @@ typedef enum mgr_action_t{
     P_OUTPUT=4,
 }mgr_action;
 
+typedef enum check_point_state_t{
+    NO_DISCONNECTED=1,
+    DISCONNECTED_REQUEST=2,
+    DISCONNECTED_APPROVE=3,
+}check_point_state;
+
+// declare
+int disconnct_inner();
 #endif

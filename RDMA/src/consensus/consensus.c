@@ -41,11 +41,12 @@ typedef struct consensus_component_t{ con_role my_role;
     pthread_spinlock_t spinlock;
 
     user_cb ucb;
+    up_call uc;
     void* up_para;
 }consensus_component;
 
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
-    view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,void* arg){
+    view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,up_call uc,void* arg){
     consensus_component* comp = (consensus_component*)malloc(sizeof(consensus_component));
     memset(comp,0,sizeof(consensus_component));
 
@@ -64,6 +65,7 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FI
             comp->my_role = SECONDARY;
         }
         comp->ucb = u_cb;
+        comp->uc = uc;
         comp->up_para = arg;
         comp->highest_seen_vs = highest;
         comp->highest_seen_vs->view_id = 1;
@@ -232,12 +234,10 @@ void *handle_accept_req(void* arg)
 
     for (;;)
     {
-        while(comp->cur_view->leader_id != comp->node_id)
+        if (comp->cur_view->leader_id != comp->node_id)
         {
-            if (check_point_condtion())// cheng's work
-            {
+            if (comp->uc(comp->up_para))
                 return NULL;
-            }
 
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
             if (entry->data_size != 0)

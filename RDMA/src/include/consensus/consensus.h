@@ -10,6 +10,7 @@ struct node_t;
 struct consensus_component_t;
 
 typedef void (*user_cb)(db_key_type index,void* arg);
+typedef int (*up_call)(void* arg);
 
 typedef enum con_role_t{
     LEADER = 0,
@@ -18,7 +19,7 @@ typedef enum con_role_t{
 
 struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,FILE*,int,int,
         const char*,void*,int,
-        view*,view_stamp*,view_stamp*,view_stamp*,user_cb,void*);
+        view*,view_stamp*,view_stamp*,view_stamp*,user_cb,up_call,void*);
 
 int leader_handle_submit_req(struct consensus_component_t*,size_t,void*,output_peer_t*,uint8_t,int);
 

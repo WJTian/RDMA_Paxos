@@ -1,9 +1,11 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../src/ev_mgr/ev_mgr.c 
+../src/ev_mgr/ev_mgr.c \
+../src/ev_mgr/check_point_thread.c 
 
 OBJS += \
-./src/ev_mgr/ev_mgr.o 
+./src/ev_mgr/ev_mgr.o \
+./src/ev_mgr/check_point_thread.o 
 
 
 # Each subdirectory must supply rules for building sources it contributes

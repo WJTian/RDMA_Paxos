@@ -2,6 +2,7 @@
 #include "../include/config-comp/config-mgr.h"
 #include "../include/replica-sys/node.h"
 #include "../include/rdma/dare.h"
+#include "../include/ev_mgr/check_point_thread.h"
 
 #include <fcntl.h>
 #include <netinet/tcp.h>
@@ -210,12 +211,12 @@ int disconnct_inner(){
             // do thing.  
         }
         if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
-            int ret = disconnect_RDMA(); // cheng's work
+            int ret = disconnect_RDMA(); // Not implemented yet
             if (-1==ret){ // error
                 return ret;
                 //abort();
             }
-            ret = disconnect_zookeeper(); // cheng'z work
+            ret = disconnect_zookeeper();
             if (-1 == ret){
                 return ret;
                 // abort();
@@ -235,27 +236,26 @@ int disconnct_inner(){
     return 0;
 }
 
-int check_point_condtion()
+static int check_point_condtion(void* arg)
 {
-    if (g_checkpoint_flag == NO_DISCONNECTED){
-        return 0;
-    }else if (g_checkpoint_flag == DISCONNECTED_REQUEST)
-    {
-        // return hash table size
-        if (size == 0)
+	event_manager* ev_mgr = arg;
+    int ret;
+    if (g_checkpoint_flag == NO_DISCONNECTED)
+    	ret = 0;
+    else if (g_checkpoint_flag == DISCONNECTED_REQUEST) {
+    	unsigned int connection_num = HASH_COUNT(ev_mgr->hash_map);
+        if (connection_num == 0)
         {
             g_checkpoint_flag = DISCONNECTED_APPROVE;
-            return 1;
-        } else
-        {
+            ret = 1;
+        } else {
             g_checkpoint_flag = NO_DISCONNECTED;
-            return 0;
+            ret = 0;
         }
     } else {
         // unknown
-        return 0;
     }
-    
+    return ret;
 }
 
 
@@ -265,6 +265,7 @@ static void update_state(db_key_type index,void* arg){
 
     request_record* retrieve_data = NULL;
     size_t data_size;
+
     retrieve_record(ev_mgr->db_ptr, sizeof(index), &index, &data_size, (void**)&retrieve_data);
     ev_mgr->cur_rec = index;
 
@@ -374,7 +375,7 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
 
     ev_mgr->hash_map = NULL;
 
-    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,ev_mgr->db_ptr,ev_mgr);
+    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,check_point_condtion,ev_mgr->db_ptr,ev_mgr);
 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");
@@ -382,10 +383,8 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     }
 
     pthread_t check_point_thread;
-    int ret = pthread_create(&check_point_thread, NULL,&check_point_thread_start,NULL); // please check return.
-    if (0!=ret){ // check return.
-
-    }
+    if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
+    	fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
 
 	return ev_mgr;
 

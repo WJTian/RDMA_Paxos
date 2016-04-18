@@ -1,5 +1,4 @@
-// jingyu'w work
-#include "ev_mgr.h"
+#include "../include/ev_mgr/check_point_thread.h"
 
 void * check_point_thread_start(void* argv){
 		// libevent init

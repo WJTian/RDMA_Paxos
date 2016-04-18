@@ -11,6 +11,7 @@ typedef struct peer_t{
 }peer;
 
 typedef void (*user_cb)(db_key_type index,void* arg);
+typedef int (*up_call)(void* arg);
 
 typedef struct node_t{
 	node_id_t node_id;

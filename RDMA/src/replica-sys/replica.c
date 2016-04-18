@@ -168,7 +168,16 @@ int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port)
     return 0;
 }
 
-int initialize_node(node* my_node,list* excluded_fd,const char* log_path, void (*user_cb)(db_key_type index,void* arg), void* db_ptr,void* arg){
+int disconnect_zookeeper()
+{
+    int rc = -1;
+    rc = zookeeper_close(zh);
+    if (rc == ZOK)
+        rc = 0;
+    return rc;
+}
+
+int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_call)(void* arg), void* db_ptr, void* arg){
 
     int flag = 1;
 
@@ -224,7 +233,7 @@ int initialize_node(node* my_node,list* excluded_fd,const char* log_path, void (
             my_node->node_id,my_node->sys_log_file,my_node->sys_log,
             my_node->stat_log,my_node->db_name,db_ptr,my_node->group_size,
             &my_node->cur_view,&my_node->highest_to_commit,&my_node->highest_committed,
-            &my_node->highest_seen,user_cb,arg);
+            &my_node->highest_seen,user_cb,up_call,arg);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
     }
@@ -253,7 +262,7 @@ uint32_t get_group_size(node* my_node)
     return my_node->group_size;
 }
 
-node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), void* db_ptr,void* arg){
+node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), int(*up_call)(void* arg), void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
@@ -270,7 +279,7 @@ node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_p
     }
 
 
-    if(initialize_node(my_node,excluded_fd,log_path,user_cb,db_ptr,arg)){
+    if(initialize_node(my_node,excluded_fd,log_path,user_cb,up_call,db_ptr,arg)){
         err_log("CONSENSUS MODULE : Network Layer Initialization Failed.\n");
         goto exit_error;
     }

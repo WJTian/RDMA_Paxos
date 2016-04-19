@@ -166,7 +166,7 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 
 	if (ret > 0 && ev_mgr != NULL)
 	{
-		server_side_on_read(ev_mgr, buf, ret, NULL, sockfd);
+		server_side_on_read(ev_mgr, buf, ret, sockfd);
 	}
 
 	return ret;
@@ -182,7 +182,7 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 
 	if (ret > 0 && ev_mgr != NULL)
 	{
-		server_side_on_read(ev_mgr, buf, ret, NULL, fd);
+		server_side_on_read(ev_mgr, buf, ret, fd);
 	}
 
 	return ret;

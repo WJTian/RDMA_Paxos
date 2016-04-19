@@ -15,14 +15,13 @@ void leader_on_accept(int fd, event_manager* ev_mgr)
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
-        socket_pair* new_conn = malloc(sizeof(socket_pair));
-        memset(new_conn,0,sizeof(socket_pair));
+        leader_socket_pair* new_conn = malloc(sizeof(leader_socket_pair));
+        memset(new_conn,0,sizeof(leader_socket_pair));
 
         new_conn->key = fd;
-        new_conn->ev_mgr = ev_mgr;
-        HASH_ADD_INT(ev_mgr->hash_map, key, new_conn);
+        HASH_ADD_INT(ev_mgr->leader_hash_map, key, new_conn);
 
-        rsm_op(ev_mgr->con_node, 0, NULL, NULL, P_CONNECT, fd);
+        rsm_op(ev_mgr->con_node, 0, NULL, P_CONNECT, &new_conn->vs);
     }
 
     return;
@@ -36,8 +35,8 @@ int *replica_on_accept(event_manager* ev_mgr)
         request_record* retrieve_data = NULL;
         size_t data_size;
         retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
-        socket_pair* ret = NULL;
-        HASH_FIND_INT(ev_mgr->hash_map, &retrieve_data->clt_id, ret);
+        replica_socket_pair* ret = NULL;
+        HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(replica_socket_pair), ret);
         ret->accepted = 1;
         return &ret->s_p;
     }
@@ -50,14 +49,15 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
-        socket_pair* ret = NULL;
-        HASH_FIND_INT(ev_mgr->hash_map, &fd, ret);
+        leader_socket_pair* ret = NULL;
+        HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, ret);
         if (ret == NULL)
             goto mgr_on_close_exit;
 
-        HASH_DEL(ev_mgr->hash_map, ret);
+        view_stamp close_vs = ret->vs;
+        HASH_DEL(ev_mgr->leader_hash_map, ret);
 
-        rsm_op(ev_mgr->con_node, 0, NULL, NULL, P_CLOSE, fd);
+        rsm_op(ev_mgr->con_node, 0, NULL, P_CLOSE, &close_vs);
     }
 mgr_on_close_exit:
     return;
@@ -78,9 +78,11 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
             {
                 /* nothing to do */
             } else{
-                const dare_log_entry *p = rsm_op("fd:hash_index"); //fd -> vs
+                leader_socket_pair* socket_pair = NULL;
+                HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
+                const dare_log_entry_t *p = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
                 // how to get hash value form log_entry from p;
-                do_decision(p);// best effort
+                //do_decision(p);// best effort
             }
         }
     }
@@ -115,7 +117,7 @@ static int keep_alive(int fd) {
     return 0;
 }
 
-void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, output_peer_t* output_peers, int fd){
+void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
@@ -123,16 +125,18 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, output_pe
         fstat(fd, &sb);
         if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0 && listSearchKey(ev_mgr->excluded_fd, &fd) == NULL)
         {
-            rsm_op(ev_mgr->con_node, ret, buf, output_peers, P_SEND, fd);
+            leader_socket_pair* socket_pair = NULL;
+            HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
+            rsm_op(ev_mgr->con_node, ret, buf, P_SEND, &socket_pair->vs);
         }
     }
     return;
 };
 
-static void do_action_close(int clt_id,void* arg){
+static void do_action_close(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
-    socket_pair* ret = NULL;
-    HASH_FIND_INT(ev_mgr->hash_map,&clt_id,ret);
+    replica_socket_pair* ret = NULL;
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(replica_socket_pair), ret);
     if(NULL==ret){
         goto do_action_close_exit;
     }else{      
@@ -145,25 +149,25 @@ static void do_action_close(int clt_id,void* arg){
                 fprintf(stderr, "failed to find the matching key\n");
             listDelNode(ev_mgr->excluded_fd, node);
 
-            HASH_DEL(ev_mgr->hash_map, ret);
+            HASH_DEL(ev_mgr->replica_hash_map, ret);
         }
     }
 do_action_close_exit:
     return;
 }
 
-static void do_action_connect(int clt_id,void* arg){
+static void do_action_connect(view_stamp clt_id,void* arg){
     
     event_manager* ev_mgr = arg;
-    socket_pair* ret = NULL;
-    HASH_FIND_INT(ev_mgr->hash_map, &clt_id, ret);
+    replica_socket_pair* ret;
+
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(replica_socket_pair), ret);
     if(NULL==ret){
-        ret = malloc(sizeof(socket_pair));
-        memset(ret,0,sizeof(socket_pair));
+        ret = malloc(sizeof(replica_socket_pair));
+        memset(ret,0,sizeof(replica_socket_pair));
         ret->key = clt_id;
-        ret->ev_mgr = ev_mgr;
         ret->accepted = 0;
-        HASH_ADD_INT(ev_mgr->hash_map, key, ret);
+        HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(replica_socket_pair), ret);
     }
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
@@ -173,7 +177,7 @@ static void do_action_connect(int clt_id,void* arg){
 
         connect(*fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
         ret->p_s = fd;
-        SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection (id %d) with server application.\n", ret->key);
+        SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection with server application.\n");
 
         set_blocking(*fd, 0);
         
@@ -188,8 +192,8 @@ static void do_action_connect(int clt_id,void* arg){
 
 static void do_action_send(request_record *retrieve_data,void* arg){
     event_manager* ev_mgr = arg;
-    socket_pair* ret = NULL;
-    HASH_FIND_INT(ev_mgr->hash_map, &retrieve_data->clt_id, ret);
+    replica_socket_pair* ret = NULL;
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(replica_socket_pair), ret);
 
     if(NULL==ret){
         goto do_action_send_exit;
@@ -253,7 +257,7 @@ static int check_point_condtion(void* arg)
     if (g_checkpoint_flag == NO_DISCONNECTED)
     	ret = 0;
     else if (g_checkpoint_flag == DISCONNECTED_REQUEST) {
-    	unsigned int connection_num = HASH_COUNT(ev_mgr->hash_map);
+        unsigned int connection_num = HASH_COUNT(ev_mgr->replica_hash_map);
         if (connection_num == 0)
         {
             g_checkpoint_flag = DISCONNECTED_APPROVE;
@@ -268,7 +272,15 @@ static int check_point_condtion(void* arg)
     return ret;
 }
 
+static int get_mapping_fd(view_stamp clt_id, void*arg)
+{
+    event_manager* ev_mgr = arg;
 
+    replica_socket_pair* ret;
+
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(replica_socket_pair), ret);
+    return ret->s_p;
+}
 
 static void update_state(db_key_type index,void* arg){
     event_manager* ev_mgr = arg;
@@ -383,9 +395,10 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
         goto mgr_exit_error;
     }
 
-    ev_mgr->hash_map = NULL;
+    ev_mgr->leader_hash_map = NULL;
+    ev_mgr->replica_hash_map = NULL;
 
-    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,check_point_condtion,ev_mgr->db_ptr,ev_mgr);
+    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");

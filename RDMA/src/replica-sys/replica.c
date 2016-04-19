@@ -177,7 +177,7 @@ int disconnect_zookeeper()
     return rc;
 }
 
-int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_call)(void* arg), void* db_ptr, void* arg){
+int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
 
     int flag = 1;
 
@@ -233,7 +233,7 @@ int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void 
             my_node->node_id,my_node->sys_log_file,my_node->sys_log,
             my_node->stat_log,my_node->db_name,db_ptr,my_node->group_size,
             &my_node->cur_view,&my_node->highest_to_commit,&my_node->highest_committed,
-            &my_node->highest_seen,user_cb,up_call,arg);
+            &my_node->highest_seen,user_cb,up_check,up_get,arg);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
     }
@@ -246,10 +246,9 @@ initialize_node_exit:
     return flag;
 }
 
-void rsm_op(node* my_node, size_t ret, void *buf, output_peer_t* output_peers, uint8_t type, int clt_id)
+dare_log_entry_t* rsm_op(node* my_node, size_t ret, void *buf, uint8_t type, view_stamp* clt_id)
 {
-    leader_handle_submit_req(my_node->consensus_comp,ret,buf,output_peers,type,clt_id);
-    return;
+    return leader_handle_submit_req(my_node->consensus_comp,ret,buf,type,clt_id);
 }
 
 uint32_t get_leader_id(node* my_node)
@@ -262,7 +261,7 @@ uint32_t get_group_size(node* my_node)
     return my_node->group_size;
 }
 
-node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), int(*up_call)(void* arg), void* db_ptr,void* arg){
+node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), int(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
@@ -279,7 +278,7 @@ node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_p
     }
 
 
-    if(initialize_node(my_node,excluded_fd,log_path,user_cb,up_call,db_ptr,arg)){
+    if(initialize_node(my_node,excluded_fd,log_path,user_cb,up_check,up_get,db_ptr,arg)){
         err_log("CONSENSUS MODULE : Network Layer Initialization Failed.\n");
         goto exit_error;
     }

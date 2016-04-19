@@ -4,7 +4,6 @@
 
 #include "../include/rdma/dare_ibv_rc.h"
 #include "../include/rdma/dare_server.h"
-
 #include "../include/util/clock.h"
 
 #define IBDEV dare_ib_device
@@ -41,12 +40,13 @@ typedef struct consensus_component_t{ con_role my_role;
     pthread_spinlock_t spinlock;
 
     user_cb ucb;
-    up_call uc;
+    up_check uc;
+    up_get ug;
     void* up_para;
 }consensus_component;
 
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
-    view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,up_call uc,void* arg){
+    view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,up_check uc,up_get ug,void* arg){
     consensus_component* comp = (consensus_component*)malloc(sizeof(consensus_component));
     memset(comp,0,sizeof(consensus_component));
 
@@ -66,6 +66,7 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FI
         }
         comp->ucb = u_cb;
         comp->uc = uc;
+        comp->ug = ug;
         comp->up_para = arg;
         comp->highest_seen_vs = highest;
         comp->highest_seen_vs->view_id = 1;
@@ -82,8 +83,6 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FI
 #else
         pthread_mutex_init(&comp->lock, NULL);
 #endif
-        
-        init_output();
 
         goto consensus_init_exit;
 
@@ -108,11 +107,8 @@ static int reached_quorum(uint64_t bit_map, int group_size){
     }
 }
 
-int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_size, void* data, output_peer_t *output_peers, uint8_t type, int clt_id)
+dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, size_t data_size, void* data, uint8_t type, view_stamp* clt_id)
 {
-    if (output_peers == NULL)
-    {
-
 #ifdef MEASURE_LATENCY
         clock_handler c_k;
         clock_init(&c_k);
@@ -127,6 +123,11 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
 #endif
 
         view_stamp next = get_next_view_stamp(comp);
+        if (type == P_CONNECT)
+        {
+            clt_id->view_id = next.view_id;
+            clt_id->req_id = next.req_id;
+        }
 
         db_key_type record_no = vstol(&next);
 
@@ -178,7 +179,8 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
         entry->msg_vs = next;
         entry->node_id = comp->node_id;
         entry->type = type;
-        entry->clt_id = clt_id;
+        entry->clt_id.view_id = clt_id->view_id;
+        entry->clt_id.req_id = clt_id->req_id;
 
         request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
         if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data))
@@ -224,9 +226,8 @@ recheck:
         }else{
             goto recheck;
         }
-    }
 handle_submit_req_exit:
-    return 0;
+    return entry;
 }
 
 static void set_affinity(int core_id)
@@ -295,10 +296,12 @@ void *handle_accept_req(void* arg)
                     reply->node_id = comp->node_id;
                     reply->msg_vs.view_id = entry->msg_vs.view_id;
                     reply->msg_vs.req_id = entry->msg_vs.req_id;
+                    
                     if (entry->type == P_OUTPUT)
                     {
-                        uint64_t hash = get_output_hash(entry->clt_id, (long)entry->data);
-                        reply->hash = hash;    
+                        //int fd = comp->ug(entry->clt_id, comp->up_para);
+                        //uint64_t hash = get_output_hash(fd, (long)entry->data);
+                        //reply->hash = hash;    
                     }
 
                     rem_mem_t rm;

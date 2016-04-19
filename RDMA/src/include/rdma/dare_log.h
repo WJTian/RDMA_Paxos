@@ -13,7 +13,7 @@ struct dare_log_entry_t{
     node_id_t node_id;
     size_t data_size;
     uint8_t type;
-    int clt_id;
+    view_stamp clt_id;
     char data[0];
 };
 typedef struct dare_log_entry_t dare_log_entry_t;

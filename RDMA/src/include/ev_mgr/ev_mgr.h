@@ -6,20 +6,23 @@
 #include "../replica-sys/replica.h"
 #include "uthash.h"
 
-typedef int hk_t;
 typedef uint32_t nid_t;
 
 struct event_manager_t;
 
+typedef struct leader_socket_pair_t{
+    int key;
+    view_stamp vs;
+    UT_hash_handle hh;
+}leader_socket_pair;
 
-typedef struct socket_pair_t{
-    hk_t key;
-    struct event_manager_t* ev_mgr;
+typedef struct replica_socket_pair_t{
+    view_stamp key;
     int* p_s;
     int s_p;
     int accepted;
     UT_hash_handle hh;
-}socket_pair;
+}replica_socket_pair;
 
 typedef struct mgr_address_t{
     struct sockaddr_in s_addr;
@@ -28,7 +31,8 @@ typedef struct mgr_address_t{
 
 typedef struct event_manager_t{
     nid_t node_id;
-    socket_pair* hash_map;
+    leader_socket_pair* leader_hash_map;
+    replica_socket_pair* replica_hash_map;
     mgr_address sys_addr;
 
     // log option

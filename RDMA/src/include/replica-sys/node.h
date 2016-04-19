@@ -7,11 +7,11 @@
 
 typedef struct peer_t{
 	struct sockaddr_in* peer_address;
-	size_t sock_len;
 }peer;
 
 typedef void (*user_cb)(db_key_type index,void* arg);
-typedef int (*up_call)(void* arg);
+typedef int (*up_check)(void* arg);
+typedef int (*up_get)(view_stamp clt_id,void* arg);
 
 typedef struct node_t{
 	node_id_t node_id;

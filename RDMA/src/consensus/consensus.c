@@ -291,11 +291,15 @@ void *handle_accept_req(void* arg)
                     SRV_DATA->log->tail = SRV_DATA->log->end;
                     SRV_DATA->log->end += log_entry_len(entry);
                     uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
-
                     accept_ack* reply = (accept_ack*)((char*)entry + ACCEPT_ACK_SIZE * comp->node_id);
                     reply->node_id = comp->node_id;
                     reply->msg_vs.view_id = entry->msg_vs.view_id;
                     reply->msg_vs.req_id = entry->msg_vs.req_id;
+                    if (entry->type == P_OUTPUT)
+                    {
+                        uint64_t hash = get_output_hash(entry->clt_id, (long)entry->data);
+                        reply->hash = hash;    
+                    }
 
                     rem_mem_t rm;
                     dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[entry->node_id].ep;

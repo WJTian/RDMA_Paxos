@@ -67,12 +67,21 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
-        pthread_mutex_lock(&output_handler.lock);
-        pthread_mutex_unlock(&output_handler.lock);
-
+        store_output(fd, buf, ret);
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
         if (leader_id == ev_mgr->node_id)
         {
+            long hash_index = determine_output(fd); // decide whether the leader needs to do rsm_op to do output conconsistency
+            // return the index of hashvalue in a certain connection(fd).
+            // -1 means nop
+            if (hash_index == -1)
+            {
+                /* nothing to do */
+            } else{
+                const dare_log_entry *p = rsm_op("fd:hash_index"); //fd -> vs
+                // how to get hash value form log_entry from p;
+                do_decision(p);// best effort
+            }
         }
     }
 }

@@ -21,6 +21,11 @@ static int min(int a, int b){
 	return a<b?a:b;
 }
 
+// 0   no full 
+// n hash value
+// -1 error
+// descprion: accept a buff with size, I will store into different connection (fd). And return n number of hash values.
+
 void store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 {
 	int push_size =0;
@@ -45,7 +50,7 @@ void store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 	return;
 }
 
-void get_output(int fd, long index)
+void get_output(int fd, long hash_index)
 {
 	//socket_pair* ret = NULL;
 	//HASH_FIND_INT(ev_mgr->hash_map, &fd, ret);

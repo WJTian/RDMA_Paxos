@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define UNIX_SOCK_PATH "/tmp/checkpoint.server.sock"
 #define UNIX_CMD "disconnect"
@@ -29,6 +30,11 @@ void accept_error_cb(struct evconnlistener *listener, void *ctx){
         event_base_loopexit(base, NULL);
 }
 
+void* call_disconnect_start(void *argc){
+	debug_log("[check point] disconnct_inner() is called at a new thread: %lu",(unsigned long)pthread_self());
+	int ret = disconnct_inner();
+	return NULL;
+}
 void unix_read_cb(struct bufferevent *bev, void *ctx){
         struct evbuffer *input = bufferevent_get_input(bev);
         struct evbuffer *output = bufferevent_get_output(bev);
@@ -40,8 +46,12 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         char* pos = strstr(data,UNIX_CMD);
         int ret=0;
         if (pos){ // got a command
-                printf("[check point] I will call disconnct_inner().\n");
-                ret=disconnct_inner();
+                debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
+		pthread_t thread_id;
+		int ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
+		if (!ret){
+			debug_log("[check point] call disconnct_inner() in a new thread failed.");	
+		}
         }else{// error command
                 ret=1;
         }
@@ -103,7 +113,7 @@ int start_unix_server_loop(){
 }
 
 void* check_point_thread_start(void* argv){
-	debug_log("[check_point] thread started.");
+	debug_log("[check_point] thread started. cmd:%s",UNIX_CMD);
 	start_unix_server_loop();
 	return NULL;
 }

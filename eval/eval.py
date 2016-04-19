@@ -55,10 +55,10 @@ def processBench(config, bench):
     if server_count == 3:
         testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +' & \n'+ 'sleep 2 \n' +
         'ssh ' + remote_hostone + '  "' + hook_program.replace("myid",node_id_two) + server_program + ' ' + server_input + '" &\n' + 'sleep 2 \n' +
-        'ssh ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '" &\n'+ 'sleep 20 \n' )
+        'ssh ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '" &\n'+ 'sleep 5 \n' )
     elif server_count == 1:
-        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' \n' + 'sleep 20 \n')
-    testscript.write(client_program + ' ' + client_input +'\n' + 'sleep 20 \n')
+        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' \n' + 'sleep 5 \n')
+    testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"\n' + 'sleep 5 \n')
     if server_count == 3 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
@@ -143,6 +143,8 @@ if __name__ == "__main__":
         remote_hosttwo_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host2').readline().replace("\n","")
         remote_hosttwo = username + "@" + remote_hosttwo_ip
         node_id_thr = "2 "
+        test_host_ip = os.popen('cat $RDMA_ROOT/apps/env/test_host').readline().replace("\n","")
+        test_host = username + "@" + test_host_ip
     except KeyError as e:
         logger.error("Please set the host file " + str(e))
         sys.exit(1)

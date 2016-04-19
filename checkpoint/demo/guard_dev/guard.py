@@ -7,7 +7,7 @@ Description: A guard for handling do_checkpoint and do_restore command.
 Work Flow:
 1. Starting. After RDMA program has been stared. The following information, including node_id, pid and cfg file path, will be prepared as command parameters of the guard.py.
 
-python guard.py node_id pid rdma.cfg
+python guard.py node_id aim_name rdma.cfg
 
 2. Providing services. The guard will start two types of interfaces(inner and outer). The inner interface is an unix socket, which is used for accepting command from the RDMA program in the same machine. The outer interface will be a HTTP service, which implements the operations, such as checkpoint and restore. The detailed interface will be introduced in the next section.
 
@@ -64,8 +64,9 @@ SELF_ID=-1
 STORE_BASE="/tmp/checkpoint_store"
 STORE_UPPER="/tmp"
 # kill cmd 
-KILL_CMD="pkill redis-server"
-GETPID_CMD="ps -ef | grep  redis-server | grep -v grep | awk '{print $2}'"
+AIM_NAME="redis-server"
+KILL_CMD="pkill -9 %s"%(AIM_NAME)
+GETPID_CMD="ps -ef | grep  %s | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
 # RSYNC cmd
 RSYNC_CMD=""
 # user name
@@ -124,11 +125,12 @@ def cfg_init(fname):
 
 # The init function will parse $RDMA_CFG
 def init():
-	global SELF_ID, AIM_PID, RDMA_CFG
+	global SELF_ID, AIM_NAME, RDMA_CFG
 	try:
 		argv = sys.argv
 		SELF_ID=int(argv[1])
-		AIM_PID=int(argv[2])
+		AIM_NAME=argv[2]
+		reset_pid()
 		RDMA_CFG=argv[3]
 	except Exception as e:
 		print "[init] error: %s"%(str(e))
@@ -234,7 +236,7 @@ def inner_checkpoint(node_id,round_id):
 	except Exception as e:
 		pass
 	if tmpDir:
-		cmd="/sbin/criu dump -v4 --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
+		cmd="/sbin/criu dump -v4 --shell-job --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		subprocess.call(cmd,shell=True)
 		zipBaseName = getNextBaseName() # without extName
@@ -279,7 +281,7 @@ def inner_restore(node_id,round_id):
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
-		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
+		cmd="/sbin/criu restore -v4  --shell-job -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
 		subprocess.call(cmd,shell=True)
 		shutil.rmtree(tmpDir)
@@ -375,7 +377,7 @@ def start_inner(args):
 
 # print the usage of this python program
 def usage():
-	print "Usage:\npython guard.py node_id pid rdma.cfg"
+	print "Usage:\npython guard.py node_id aim_name rdma.cfg"
 
 if __name__ == '__main__':
 	argc = len(sys.argv)

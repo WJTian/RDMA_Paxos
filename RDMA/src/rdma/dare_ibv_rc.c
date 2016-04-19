@@ -348,6 +348,21 @@ static int rc_memory_reg()
     return 0;
 }
 
+static int rc_qp_reset(dare_ib_ep_t *ep)
+{
+    int rc;
+    struct ibv_qp_attr attr;
+
+    memset(&attr, 0, sizeof(attr));
+    attr.qp_state = IBV_QPS_RESET;
+    rc = ibv_modify_qp(ep->rc_ep.rc_qp.qp, &attr, IBV_QP_STATE); 
+    if (0 != rc) {
+        error_return(1, log_fp, "ibv_modify_qp failed because %s\n", strerror(rc));
+    }
+    
+    return 0;
+}
+
 static int rc_qp_reset_to_init(dare_ib_ep_t *ep)
 {
     int rc;
@@ -435,7 +450,7 @@ static int rc_qp_rtr_to_rts(dare_ib_ep_t *ep)
     return 0;
 }
 
-int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, enum ibv_wr_opcode opcode, rem_mem_t rm)
+int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, enum ibv_wr_opcode opcode, rem_mem_t rm, int send_flags, int poll_completion)
 {
     int rc;
 
@@ -447,10 +462,6 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
     /* Define some temporary variables */
     ep = (dare_ib_ep_t*)SRV_DATA->config.servers[server_id].ep;
 
-#ifdef SELECTIVE_SIGNALING
-    uint32_t *send_count_ptr = &(ep->rc_ep.rc_qp.send_count);
-#endif
-
     memset(&sg, 0, sizeof(sg));
     sg.addr   = (uint64_t)buf;
     sg.length = len;
@@ -461,15 +472,10 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
     wr.num_sge    = 1;
     wr.opcode     = opcode;
 
-#ifdef SELECTIVE_SIGNALING
-    if((*send_count_ptr & S_DEPTH_) == 0) {
-        wr.send_flags |= IBV_SEND_SIGNALED; /* Specifying IBV_SEND_SIGNALED in wr.send_flags indicates that we want completion notification for this send request */
-    }
-    if ((*send_count_ptr & S_DEPTH_) == S_DEPTH_)
-    {
+    wr.send_flags = send_flags;
+
+    if (poll_completion)
         poll_cq(1, ep->rc_ep.rc_cq.cq);
-    }
-#endif
 
     if (IBV_WR_RDMA_WRITE == opcode) {
         if (len <= IBDEV->rc_max_inline_data) {
@@ -484,10 +490,6 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
         error_return(1, log_fp, "ibv_post_send failed because %s [%s]\n", 
             strerror(rc), rc == EINVAL ? "EINVAL" : rc == ENOMEM ? "ENOMEM" : rc == EFAULT ? "EFAULT" : "UNKNOWN");
     }
-
-#ifdef SELECTIVE_SIGNALING
-    (*send_count_ptr)++;
-#endif
 
     return 0;
 }
@@ -515,4 +517,21 @@ static int poll_cq(int max_wc, struct ibv_cq *cq)
         }
     }
     return total_wc;
+}
+
+int rc_disconnect_server(uint32_t idx)
+{
+    int rc;
+    dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
+    if (0 == ep->rc_connected) {
+        return 0;
+    }
+    
+    ep->rc_connected = 0;
+    rc = rc_qp_reset(ep);
+    if (0 != rc) {
+        error_return(1, log_fp, "Cannot reset LOG QP for server %"PRIu32"\n", idx);
+    }
+
+    return 0;
 }

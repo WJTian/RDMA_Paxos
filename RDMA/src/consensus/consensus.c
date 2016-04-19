@@ -143,14 +143,34 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
         SRV_DATA->log->end += log_entry_len(entry);
         uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail);
 
-        entry->req_canbe_exed.view_id = comp->highest_committed_vs->view_id;
-        entry->req_canbe_exed.req_id = comp->highest_committed_vs->req_id;
+        dare_ib_ep_t *ep;
+        uint32_t i, *send_count_ptr;
+        int send_flags[MAX_SERVER_COUNT], poll_completion[MAX_SERVER_COUNT] = {0};
+        for (i = 0; i < comp->group_size; i++) {
+            ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
+            if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
+                continue;
+            send_count_ptr = &(ep->rc_ep.rc_qp.send_count);
+
+            if((*send_count_ptr & S_DEPTH_) == 0)
+                send_flags[i] = IBV_SEND_SIGNALED;
+            else
+                send_flags[i] = 0;
+
+            if ((*send_count_ptr & S_DEPTH_) == S_DEPTH_)
+                poll_completion[i] = 1;
+            
+            (*send_count_ptr)++;
+        }
 
 #ifdef USE_SPIN_LOCK
         pthread_spin_unlock(&comp->spinlock);
 #else
         pthread_mutex_unlock(&comp->lock);
 #endif
+
+        entry->req_canbe_exed.view_id = comp->highest_committed_vs->view_id;
+        entry->req_canbe_exed.req_id = comp->highest_committed_vs->req_id;
         
         if (data != NULL)
             memcpy(entry->data,data,data_size);
@@ -172,9 +192,7 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
 
         uint64_t bit_map = (1<<comp->node_id);
         rem_mem_t rm;
-        dare_ib_ep_t *ep;
 
-        uint32_t i;
         for (i = 0; i < comp->group_size; i++) {
             ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
             if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
@@ -183,7 +201,7 @@ int leader_handle_submit_req(struct consensus_component_t* comp, size_t data_siz
             rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
             rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
-            post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
+            post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm, send_flags[i], poll_completion[i]);
         }
 recheck:
         for (i = 0; i < MAX_SERVER_COUNT; i++) {
@@ -236,8 +254,8 @@ void *handle_accept_req(void* arg)
     {
         if (comp->cur_view->leader_id != comp->node_id)
         {
-            if (comp->uc(comp->up_para))
-                return NULL;
+            /*if (comp->uc(comp->up_para))
+                return NULL;*/
 
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
             if (entry->data_size != 0)
@@ -282,10 +300,23 @@ void *handle_accept_req(void* arg)
                     rem_mem_t rm;
                     dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[entry->node_id].ep;
 
+                    uint32_t *send_count_ptr = &(ep->rc_ep.rc_qp.send_count);
+                    int send_flags, poll_completion = 0;
+
+                    if((*send_count_ptr & S_DEPTH_) == 0)
+                        send_flags = IBV_SEND_SIGNALED;
+                    else
+                        send_flags = 0;
+
+                    if ((*send_count_ptr & S_DEPTH_) == S_DEPTH_)
+                        poll_completion = 1;
+
+                    (*send_count_ptr)++;
+
                     rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
                     rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
-                    post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm);
+                    post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm, send_flags, poll_completion);
 
                     if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
                     {

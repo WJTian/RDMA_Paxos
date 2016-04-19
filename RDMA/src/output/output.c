@@ -4,7 +4,7 @@
 
 output_handler_t output_handler;
 
-void init_output()
+void init_output(int fd)
 {
 	output_handler.output_list = listCreate();
 	output_handler.count = 0;
@@ -21,7 +21,7 @@ static int min(int a, int b){
 	return a<b?a:b;
 }
 
-void store_output(const unsigned char *buff, ssize_t buff_size)
+void store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 {
 	int push_size =0;
 	while (push_size < buff_size){
@@ -43,4 +43,27 @@ void store_output(const unsigned char *buff, ssize_t buff_size)
 		}
 	}
 	return;
+}
+
+void get_output(int fd, long index)
+{
+	//socket_pair* ret = NULL;
+	//HASH_FIND_INT(ev_mgr->hash_map, &fd, ret);
+
+
+	//HASH_FIND_INT(output_handler->hash_table, &ret->s_p, ) find the corresponding hash table
+	//listNode * node = listIndex(list *list, index);
+	//return listNodeValue(node);
+}
+
+
+void del_output(int fd)
+{
+	//socket_pair* ret = NULL;
+	//HASH_FIND_INT(ev_mgr->hash_map, &fd, ret);
+
+
+	//HASH_FIND_INT(output_handler->hash_table, &ret->s_p, ) find the corresponding hash table
+	//listNode * node = listIndex(list *list, index);
+	//return listNodeValue(node);
 }

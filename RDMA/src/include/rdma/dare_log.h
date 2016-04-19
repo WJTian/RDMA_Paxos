@@ -55,7 +55,7 @@ static dare_log_t* log_new()
     return log;
 }
 
-static void log_free( dare_log_t* log )
+static void log_free(dare_log_t* log)
 {
     if (NULL != log) {
         free(log);
@@ -63,17 +63,17 @@ static void log_free( dare_log_t* log )
     }
 }
 
-static inline int is_log_empty( dare_log_t* log )
+static inline int is_log_empty(dare_log_t* log)
 {
     return (log->end == log->len);
 }
 
-static inline int log_fit_entry_header( dare_log_t* log, uint64_t offset )
+static inline int log_fit_entry_header(dare_log_t* log, uint64_t offset)
 {
     return (log->len - offset >= sizeof(dare_log_entry_t));
 }
 
-static inline dare_log_entry_t* log_add_new_entry( dare_log_t* log )
+static inline dare_log_entry_t* log_add_new_entry(dare_log_t* log)
 {
     if (is_log_empty(log)) {
         return (dare_log_entry_t*)(log->entries);

@@ -153,6 +153,7 @@ static void do_action_connect(int clt_id,void* arg){
         memset(ret,0,sizeof(socket_pair));
         ret->key = clt_id;
         ret->ev_mgr = ev_mgr;
+        ret->accepted = 0;
         HASH_ADD_INT(ev_mgr->hash_map, key, ret);
     }
     if(ret->p_s==NULL){
@@ -382,9 +383,9 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
         goto mgr_exit_error;
     }
 
-    pthread_t check_point_thread;
-    if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
-    	fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
+    //pthread_t check_point_thread;
+    //if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
+    	//fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
 
 	return ev_mgr;
 

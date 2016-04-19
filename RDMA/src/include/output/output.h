@@ -32,7 +32,7 @@ void init_output();
 
 extern output_handler_t output_handler;
 
-void store_output(const unsigned char *buf, ssize_t ret);
+void store_output(int fd, const unsigned char *buf, ssize_t ret);
 int do_decision(output_peer_t* output_peers, int group_size);
 
 

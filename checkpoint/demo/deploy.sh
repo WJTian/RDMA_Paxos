@@ -1,6 +1,10 @@
 #!/bin/sh
 
 AIM="guard_dev"
+cd $AIM
+sh ./sync_so.sh
+cd ../
+
 rm -rf $AIM/.db
 rm -rf $AIM/*.log
 rsync -aP --delete  ./$AIM hkucs-poweredge-r430-1:/tmp/

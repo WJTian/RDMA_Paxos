@@ -52,6 +52,7 @@ import string
 import pylibconfig2 as cfg
 import urllib2
 import threading
+import socket
 
 # They are global variables, and will be initialised in init()
 #=================
@@ -259,14 +260,17 @@ def inner_checkpoint(node_id,round_id):
 		send_disconnect_cmd()
 		cmd="/sbin/criu dump -v4 --shell-job --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
-		subprocess.call(cmd,shell=True)
-		zipBaseName = getNextBaseName() # without extName
-		zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
-		print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
-		shutil.rmtree(tmpDir)
-		#rsync zip file to others
-		print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
-		subprocess.call(RSYNC_CMD,shell=True)
+		retcode = subprocess.call(cmd,shell=True)
+		if retcode:
+			print "[inner_checkpoint] criu dump error, please cat /tmp/criu.dump.log"
+		else:
+			zipBaseName = getNextBaseName() # without extName
+			zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
+			print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
+			shutil.rmtree(tmpDir)
+			#rsync zip file to others
+			print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
+			subprocess.call(RSYNC_CMD,shell=True)
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
 	return
@@ -308,7 +312,9 @@ def inner_restore(node_id,round_id):
 			zf.extractall(tmpDir)
 		cmd="/sbin/criu restore -v4  --shell-job -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
-		subprocess.call(cmd,shell=True)
+		retcode = subprocess.call(cmd,shell=True)
+		if retcode :
+			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
 		shutil.rmtree(tmpDir)
 		reset_pid()	
 	return 
@@ -376,10 +382,10 @@ class InnerHandler(SocketServer.BaseRequestHandler):
 			print "[inner] self_id: %d, node_id: %d"%(SELF_ID,node_id)
 			if SELF_ID == node_id: # This is a inner call
 				inner_service(cmd,node_id,round_id)	
-				self.request.sendall("[inner] OK. The calling is served.")
+				self.request.sendall("[inner] OK. The calling is served.\n")
 			else: # This is a outer call
 				route(cmd,node_id,round_id)
-				self.request.sendall("[inner] OK. The calling is routed.")
+				self.request.sendall("[inner] OK. The calling is routed.\n")
 
 # The function will start outer interface handler in a thread
 def start_outer(args):

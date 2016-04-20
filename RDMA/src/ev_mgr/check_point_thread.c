@@ -25,15 +25,14 @@
 void accept_error_cb(struct evconnlistener *listener, void *ctx){
         struct event_base *base = evconnlistener_get_base(listener);
         int err = EVUTIL_SOCKET_ERROR();
-        fprintf(stderr, "[check point] Got an error %d (%s) on the listener. "
-            "Shutting down.\n", err, evutil_socket_error_to_string(err));
+        debug_log("[check point] Got an error %d (%s) on the listener.\n", err, evutil_socket_error_to_string(err));
         event_base_loopexit(base, NULL);
 }
 
 void* call_disconnect_start(void *argc){
-	debug_log("[check point] disconnct_inner() is called at a new thread: %lu",(unsigned long)pthread_self());
+	debug_log("[check point] disconnct_inner() is called at a new thread: %lu\n",(unsigned long)pthread_self());
 	int ret = disconnct_inner();
-	debug_log("[check point] disconnct_inner() is finished %lu",(unsigned long)pthread_self());
+	debug_log("[check point] disconnct_inner() is finished %lu\n",(unsigned long)pthread_self());
 	return NULL;
 }
 void unix_read_cb(struct bufferevent *bev, void *ctx){
@@ -43,7 +42,7 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         char *data;
         data = malloc(len);
         evbuffer_copyout(input, data, len);
-        printf("[check point] read data:#%s#\n",data);
+        debug_log("[check point] read data:#%s#\n",data);
         char* pos = strstr(data,UNIX_CMD);
         int ret=0;
         if (pos){ // got a command
@@ -65,17 +64,17 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
 
 void unix_event_cb(struct bufferevent *bev, short events, void *ctx){
         if (events & BEV_EVENT_ERROR){
-                perror("[check point] Error from bufferevent");
+                debug_log("[check point] Error from bufferevent.\n");
         }
         if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR)) {
-                printf("[check point] client has quited.");
+                debug_log("[check point] client has quited.\n");
                 bufferevent_free(bev);
         }
 }
 
 // When a unix socket accepts a new client, it will register two functions read and event.
 void accept_conn_cb(struct evconnlistener *listener, evutil_socket_t fd, struct sockaddr *address, int socklen, void *ctx){
-        printf("[check point] on accepted.\n");
+        debug_log("[check point] on accepted.\n");
         struct event_base *base = evconnlistener_get_base(listener);
         // socket will be closed on free
         struct bufferevent *bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
@@ -91,7 +90,7 @@ int start_unix_server_loop(){
         struct sockaddr_un sin;
         base = event_base_new();
         if (!base) {
-                printf("[check point] Couldn't open event base unix socket.\n");
+                debug_log("[check point] Couldn't open event base unix socket.\n");
                 return -1;
         }
         memset(&sin, 0, sizeof(sin));
@@ -103,18 +102,18 @@ int start_unix_server_loop(){
                                LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, -1,
                                (struct sockaddr *) &sin, sizeof(sin));
         if (!listener){
-                printf("[check point] Couldn't create unix listener.\n");
+                debug_log("[check point] Couldn't create unix listener.\n");
                 return -2;
         }
         evconnlistener_set_error_cb(listener, accept_error_cb);
-        printf("[check point] Unix socket will be ready to accept at %s\n",UNIX_SOCK_PATH);
+       	debug_log("[check point] Unix socket will be ready to accept at %s\n",UNIX_SOCK_PATH);
         event_base_dispatch(base); // It will loop
 	event_base_free(base);
         return 0;
 }
 
 void* check_point_thread_start(void* argv){
-	debug_log("[check_point] thread started. cmd:%s",UNIX_CMD);
+	debug_log("[check_point] thread started. cmd:%s\n",UNIX_CMD);
 	start_unix_server_loop();
 	return NULL;
 }

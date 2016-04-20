@@ -34,7 +34,9 @@ int *replica_on_accept(event_manager* ev_mgr)
     {
         request_record* retrieve_data = NULL;
         size_t data_size;
-        retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
+        while (retrieve_data == NULL){
+            retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
+        }
         replica_socket_pair* ret = NULL;
         HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
         ret->accepted = 1;

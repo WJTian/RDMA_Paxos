@@ -263,6 +263,8 @@ def reset_pid():
 		print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
 	except Exception as e:
 		print "[reset_pid] Failed to get pid by cmd: %s"%(GETPID_CMD)
+	TIMER_SECS=5.0
+	threading.Timmer(TIMER_SECS,reset_pid).start()
 	
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
@@ -275,6 +277,7 @@ def inner_restore(node_id,round_id):
         except Exception as e:
                 pass
         if tmpDir and os.path.exists(currZip):
+		reset_pid()
 		# kill 
 		subprocess.call(KILL_CMD,shell=True)
 		time.sleep(1) # wait for kill
@@ -371,6 +374,9 @@ def start_inner(args):
 			print "[inner] ERR file %s cannot be removed."%(UNIX_SOCK)
 			print "[inner] Interface failed."
 			return
+	#update pid every 5 s
+	TIMER_SECS=5.0
+	threading.Timer(TIMER_SECS, reset_pid).start()
 	print "[inner] Interface(%s) will start."%(UNIX_SOCK)
 	srv = SocketServer.UnixStreamServer(UNIX_SOCK,InnerHandler)	
 	srv.serve_forever()

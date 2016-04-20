@@ -109,7 +109,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(name)-s %(levelname)-s %(message)s',
                         datefmt='%m-%d %H:%M',
-                        filename='/tmp/myapp.log',
+                        #filename='/tmp/myapp.log',
                         filemode='w')
     # define a Handler which writes INFO messages or higher to the sys.stderr
     console = logging.StreamHandler()

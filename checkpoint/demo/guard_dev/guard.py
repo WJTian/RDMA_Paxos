@@ -265,7 +265,7 @@ def reset_pid():
 	except Exception as e:
 		print "[reset_pid] Failed to get pid by cmd: %s"%(GETPID_CMD)
 	TIMER_SECS=5.0
-	threading.Timmer(TIMER_SECS,reset_pid).start()
+	threading.Timer(TIMER_SECS,reset_pid).start()
 	
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)

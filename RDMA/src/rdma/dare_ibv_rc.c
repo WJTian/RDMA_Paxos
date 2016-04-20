@@ -31,6 +31,7 @@ static int rc_qp_init_to_rtr(dare_ib_ep_t *ep, uint16_t dlid, uint8_t *dgid);
 static int rc_qp_rtr_to_rts(dare_ib_ep_t *ep);
 static int rc_qp_reset_to_init( dare_ib_ep_t *ep);
 static int poll_cq(int max_wc, struct ibv_cq *cq);
+static int rc_qp_reset(dare_ib_ep_t *ep);
 
 /* ================================================================== */
 
@@ -519,18 +520,23 @@ static int poll_cq(int max_wc, struct ibv_cq *cq)
     return total_wc;
 }
 
-int rc_disconnect_server(uint32_t idx)
+int rc_disconnect_server()
 {
     int rc;
-    dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
-    if (0 == ep->rc_connected) {
-        return 0;
-    }
-    
-    ep->rc_connected = 0;
-    rc = rc_qp_reset(ep);
-    if (0 != rc) {
-        error_return(1, log_fp, "Cannot reset LOG QP for server %"PRIu32"\n", idx);
+    uint32_t i;
+    dare_ib_ep_t *ep;
+    for (i = 0; i < SRV_DATA->config.cid.size; i++)
+    {
+        if (0 == ep->rc_connected || i == SRV_DATA->config.idx)
+            continue;
+        ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
+        ep->rc_connected = 0;  
+
+        rc = rc_qp_reset(ep);
+        if (0 != rc) {
+            fprintf(stderr, "Cannot reset LOG QP for server %"PRIu32"\n", i);
+            return -1;
+        }
     }
 
     return 0;

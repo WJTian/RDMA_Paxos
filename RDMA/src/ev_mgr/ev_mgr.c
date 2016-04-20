@@ -36,7 +36,7 @@ int *replica_on_accept(event_manager* ev_mgr)
         size_t data_size;
         retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
         replica_socket_pair* ret = NULL;
-        HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(replica_socket_pair), ret);
+        HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
         ret->accepted = 1;
         return &ret->s_p;
     }
@@ -136,7 +136,7 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
 static void do_action_close(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
     replica_socket_pair* ret = NULL;
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(replica_socket_pair), ret);
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
         goto do_action_close_exit;
     }else{      
@@ -161,13 +161,13 @@ static void do_action_connect(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
     replica_socket_pair* ret;
 
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(replica_socket_pair), ret);
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
         ret = malloc(sizeof(replica_socket_pair));
         memset(ret,0,sizeof(replica_socket_pair));
         ret->key = clt_id;
         ret->accepted = 0;
-        HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(replica_socket_pair), ret);
+        HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(view_stamp), ret);
     }
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
@@ -193,7 +193,7 @@ static void do_action_connect(view_stamp clt_id,void* arg){
 static void do_action_send(request_record *retrieve_data,void* arg){
     event_manager* ev_mgr = arg;
     replica_socket_pair* ret = NULL;
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(replica_socket_pair), ret);
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
 
     if(NULL==ret){
         goto do_action_send_exit;
@@ -225,7 +225,7 @@ int disconnct_inner(){
             // do thing.  
         }
         if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
-            int ret = disconnect_RDMA(); // Not implemented yet
+            int ret = rc_disconnect_server();
             if (-1==ret){ // error
                 return ret;
                 //abort();
@@ -278,7 +278,7 @@ static int get_mapping_fd(view_stamp clt_id, void*arg)
 
     replica_socket_pair* ret;
 
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(replica_socket_pair), ret);
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
     return ret->s_p;
 }
 

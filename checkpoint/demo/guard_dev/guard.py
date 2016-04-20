@@ -260,8 +260,9 @@ def reset_pid():
 	try:
 		pid_str = subprocess.check_output(GETPID_CMD,shell=True)
 		pid = int(pid_str)  
-		AIM_PID = pid
-		print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
+		if AIM_PID != pid:
+			AIM_PID = pid
+			print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
 	except Exception as e:
 		print "[reset_pid] Failed to get pid by cmd: %s"%(GETPID_CMD)
 	TIMER_SECS=5.0

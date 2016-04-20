@@ -2,9 +2,9 @@
 
 set -x
 # before dump
-REDIS_CLI_1="./apps/redis-cli -h 10.22.1.1 -p 26379"
-REDIS_CLI_2="./apps/redis-cli -h 10.22.1.2 -p 26379"
-REDIS_CLI_3="./apps/redis-cli -h 10.22.1.3 -p 26379"
+REDIS_CLI_1="./apps/redis-cli -h 10.22.1.1 -p 7004"
+REDIS_CLI_2="./apps/redis-cli -h 10.22.1.2 -p 7004"
+REDIS_CLI_3="./apps/redis-cli -h 10.22.1.3 -p 7004"
 
 CK_NODE="1"  # 10.22.1.2
 RE_NODE="2"  # 10.22.1.3

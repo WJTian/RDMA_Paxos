@@ -51,6 +51,7 @@ import shutil
 import string
 import pylibconfig2 as cfg
 import urllib2
+import threading
 
 # They are global variables, and will be initialised in init()
 #=================

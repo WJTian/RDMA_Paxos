@@ -10,8 +10,13 @@
 
 volatile int g_checkpoint_flag = NO_DISCONNECTED;
 
+static pthread_t check_point_thread; // a global pid
+
 void leader_on_accept(int fd, event_manager* ev_mgr)
 {
+    if (pthread_self() == check_point_thread)
+        return;
+
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
@@ -29,6 +34,13 @@ void leader_on_accept(int fd, event_manager* ev_mgr)
 
 int *replica_on_accept(event_manager* ev_mgr)
 {
+    if (pthread_self() == check_point_thread)
+    {
+	fprintf(stderr, "libe vent thread is called, self id is %d %d\n", pthread_self(), check_point_thread);
+        return NULL;
+    }
+     fprintf(stderr, "other thread is called, self id is %d\n", pthread_self());
+    
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id != leader_id)
     {
@@ -48,6 +60,9 @@ int *replica_on_accept(event_manager* ev_mgr)
 
 void mgr_on_close(int fd, event_manager* ev_mgr)
 {
+    if (pthread_self() == check_point_thread)
+        return;
+    
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
@@ -67,6 +82,9 @@ mgr_on_close_exit:
 
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
+    if (pthread_self() == check_point_thread)
+        return NULL;
+    
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
         store_output(fd, buf, ret);
@@ -120,6 +138,9 @@ static int keep_alive(int fd) {
 }
 
 void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
+    if (pthread_self() == check_point_thread)
+        return NULL;
+    
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
@@ -254,6 +275,7 @@ int disconnct_inner(){
 
 static int check_point_condtion(void* arg)
 {
+	//fprintf(stderr, "checking point\n");
 	event_manager* ev_mgr = arg;
     int ret;
     if (g_checkpoint_flag == NO_DISCONNECTED)
@@ -407,9 +429,8 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
         goto mgr_exit_error;
     }
 
-    //pthread_t check_point_thread;
-    //if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
-    	//fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
+    if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
+    	fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
 
 	return ev_mgr;
 

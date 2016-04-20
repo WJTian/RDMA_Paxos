@@ -174,6 +174,7 @@ int disconnect_zookeeper()
     rc = zookeeper_close(zh);
     if (rc == ZOK)
         rc = 0;
+    fprintf(stderr, "zookeeper clsoe rc is %d\n", rc);
     return rc;
 }
 

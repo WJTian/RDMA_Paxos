@@ -251,12 +251,13 @@ void *handle_accept_req(void* arg)
 
     set_affinity(1);
 
+    fprintf(stderr, "replica thread is called, self id is %d\n", pthread_self());
     for (;;)
     {
         if (comp->cur_view->leader_id != comp->node_id)
         {
-            /*if (comp->uc(comp->up_para))
-                return NULL;*/
+            if (comp->uc(comp->up_para))
+                return NULL;
 
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
             if (entry->data_size != 0)

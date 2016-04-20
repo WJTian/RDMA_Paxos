@@ -3,28 +3,12 @@ if [ -f ~/.bashrc ]; then
   source ~/.bashrc
 fi
 
-MEM_VER=1.4.25
 MCP_VER=0.1.1
 
 #apt-get update
 #apt-get install -y libevent-dev g++ make wget
 
 cd $RDMA_ROOT/apps/memcached
-#memcached install
-if [ ! -f memcached-$MEM_VER.tar.gz ]
-then
-    wget http://www.memcached.org/files/memcached-$MEM_VER.tar.gz
-else
-    echo "memcached-$MEM_VER.tar.gz exists."
-fi
-tar zxf memcached-$MEM_VER.tar.gz
-rm memcached-$MEM_VER.tar.gz
-cd memcached-$MEM_VER
-./configure --prefix=$RDMA_ROOT/apps/memcached/install
-make 
-make install
-cd ..
-rm -rf memcached-$MEM_VER
 
 #mcperf install to test memcached
 if [ ! -f mcperf-$MCP_VER.tar.gz ]
@@ -45,10 +29,11 @@ cd mcperf-$MCP_VER
 #    exit 1
 #fi
 
+
 make 
 make install
 cd ..
 rm -rf mcperf-$MCP_VER
 
-
+scp -rp ./mcperf $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host):$RDMA_ROOT/apps/redis
 

@@ -5,7 +5,7 @@ Date: 6 April, 2016
 Description: A guard for handling do_checkpoint and do_restore command.
 
 Work Flow:
-1. Starting. After RDMA program has been stared. The following information, including node_id, pid and cfg file path, will be prepared as command parameters of the guard.py.
+1. Starting. After RDMA program has been stared. The following information, including node_id, name and cfg file path, will be prepared as command parameters of the guard.py.
 
 python guard.py node_id aim_name rdma.cfg
 
@@ -52,6 +52,7 @@ import string
 import pylibconfig2 as cfg
 import urllib2
 import threading
+import socket
 
 # They are global variables, and will be initialised in init()
 #=================
@@ -77,6 +78,10 @@ NODE_INFO=None
 # The IP:PORT I am listening for service.
 BIND_HOST="0.0.0.0"
 BIND_PORT=12345
+
+#disconnect cmd
+DISCONNECT_CMD="disconnect"
+DISCONNECT_SOCK="/tmp/checkpoint.server.sock"
 # The unix socket I am listening for accepting internal request.
 UNIX_SOCK="/tmp/guard.sock"
 
@@ -228,6 +233,21 @@ def getNextBaseName():
 	next_id = max_id+1
 	return os.path.join(STORE_BASE,"checkpoint_%d"%(next_id))
 
+def send_disconnect_cmd():
+	"""
+	Send a disconnect cmd to a unix socket, which is listened by libevent thread in RDMA code.
+	"""	
+	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+	try:
+		MAX_RECV=512
+		sock.connect(DISCONNECT_SOCK)
+		sock.send(DISCONNECT_CMD)
+		reply = sock.recv(MAX_RECV)
+		print "[send_disconnect_cmd] %s, reply: %s"%(DISCONNECT_CMD,reply)	
+	except Exception as e:
+		print "[send_disconnect_cmd] send %s failed at unix socket"%(DISCONNECT_CMD)
+		pass
+
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
 	# mkdir dump
@@ -237,16 +257,20 @@ def inner_checkpoint(node_id,round_id):
 	except Exception as e:
 		pass
 	if tmpDir:
+		send_disconnect_cmd()
 		cmd="/sbin/criu dump -v4 --shell-job --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
-		subprocess.call(cmd,shell=True)
-		zipBaseName = getNextBaseName() # without extName
-		zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
-		print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
-		shutil.rmtree(tmpDir)
-		#rsync zip file to others
-		print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
-		subprocess.call(RSYNC_CMD,shell=True)
+		retcode = subprocess.call(cmd,shell=True)
+		if retcode:
+			print "[inner_checkpoint] criu dump error, please cat /tmp/criu.dump.log"
+		else:
+			zipBaseName = getNextBaseName() # without extName
+			zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
+			print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
+			shutil.rmtree(tmpDir)
+			#rsync zip file to others
+			print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
+			subprocess.call(RSYNC_CMD,shell=True)
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
 	return
@@ -288,7 +312,9 @@ def inner_restore(node_id,round_id):
 			zf.extractall(tmpDir)
 		cmd="/sbin/criu restore -v4  --shell-job -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
-		subprocess.call(cmd,shell=True)
+		retcode = subprocess.call(cmd,shell=True)
+		if retcode :
+			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
 		shutil.rmtree(tmpDir)
 		reset_pid()	
 	return 
@@ -356,10 +382,10 @@ class InnerHandler(SocketServer.BaseRequestHandler):
 			print "[inner] self_id: %d, node_id: %d"%(SELF_ID,node_id)
 			if SELF_ID == node_id: # This is a inner call
 				inner_service(cmd,node_id,round_id)	
-				self.request.sendall("[inner] OK. The calling is served.")
+				self.request.sendall("[inner] OK. The calling is served.\n")
 			else: # This is a outer call
 				route(cmd,node_id,round_id)
-				self.request.sendall("[inner] OK. The calling is routed.")
+				self.request.sendall("[inner] OK. The calling is routed.\n")
 
 # The function will start outer interface handler in a thread
 def start_outer(args):

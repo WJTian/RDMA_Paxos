@@ -32,6 +32,7 @@ interpose.so: $(OBJS)
 	gcc-4.8  -shared -Wl,-soname,interpose.so $(OBJS) -Wall -o interpose.so $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
+	@file ./$@
 
 # Other Targets
 clean:

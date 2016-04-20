@@ -73,3 +73,5 @@ cd ycsb-mongodb
 sed -i "s/readproportion=1/readproportion=0/g" ./workloads/workloadc
 sed -i "s/insertproportion=0/insertproportion=1/g" ./workloads/workloadc
 
+cd ..
+scp -rp ./ycsb-mongodb $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host):$RDMA_ROOT/apps/mongodb

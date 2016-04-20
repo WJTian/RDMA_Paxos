@@ -1,5 +1,0 @@
-info file
-break helloCommand
-
-set args redis.conf 
-

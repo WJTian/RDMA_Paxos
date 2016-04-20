@@ -51,6 +51,7 @@ import shutil
 import string
 import pylibconfig2 as cfg
 import urllib2
+import threading
 
 # They are global variables, and will be initialised in init()
 #=================
@@ -66,7 +67,7 @@ STORE_UPPER="/tmp"
 # kill cmd 
 AIM_NAME="redis-server"
 KILL_CMD="pkill -9 %s"%(AIM_NAME)
-GETPID_CMD="ps -ef | grep  %s | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
+GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
 # RSYNC cmd
 RSYNC_CMD=""
 # user name
@@ -259,10 +260,13 @@ def reset_pid():
 	try:
 		pid_str = subprocess.check_output(GETPID_CMD,shell=True)
 		pid = int(pid_str)  
-		AIM_PID = pid
-		print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
+		if AIM_PID != pid:
+			AIM_PID = pid
+			print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
 	except Exception as e:
 		print "[reset_pid] Failed to get pid by cmd: %s"%(GETPID_CMD)
+	TIMER_SECS=5.0
+	threading.Timer(TIMER_SECS,reset_pid).start()
 	
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
@@ -275,6 +279,7 @@ def inner_restore(node_id,round_id):
         except Exception as e:
                 pass
         if tmpDir and os.path.exists(currZip):
+		reset_pid()
 		# kill 
 		subprocess.call(KILL_CMD,shell=True)
 		time.sleep(1) # wait for kill
@@ -371,6 +376,9 @@ def start_inner(args):
 			print "[inner] ERR file %s cannot be removed."%(UNIX_SOCK)
 			print "[inner] Interface failed."
 			return
+	#update pid every 5 s
+	TIMER_SECS=5.0
+	threading.Timer(TIMER_SECS, reset_pid).start()
 	print "[inner] Interface(%s) will start."%(UNIX_SOCK)
 	srv = SocketServer.UnixStreamServer(UNIX_SOCK,InnerHandler)	
 	srv.serve_forever()

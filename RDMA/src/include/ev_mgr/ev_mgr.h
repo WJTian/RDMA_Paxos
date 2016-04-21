@@ -62,6 +62,7 @@ typedef enum mgr_action_t{
     P_SEND=2,
     P_CLOSE=3,
     P_OUTPUT=4,
+    P_NOP=5,
 }mgr_action;
 
 typedef enum check_point_state_t{

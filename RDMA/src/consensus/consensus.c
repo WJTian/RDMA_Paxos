@@ -17,6 +17,7 @@ typedef enum request_type_t{
 	P_SEND=2,
 	P_CLOSE=3,
 	P_OUTPUT=4,
+	P_NOP=5,
 }request_type;
 
 typedef struct consensus_component_t{ con_role my_role;
@@ -179,8 +180,8 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         entry->msg_vs = next;
         entry->node_id = comp->node_id;
         entry->type = type;
-        entry->clt_id.view_id = clt_id->view_id;
-        entry->clt_id.req_id = clt_id->req_id;
+        entry->clt_id.view_id = (type != P_NOP)?clt_id->view_id:0;
+        entry->clt_id.req_id = (type != P_NOP)?clt_id->req_id:0;
 
         request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
         if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data))

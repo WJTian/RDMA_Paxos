@@ -82,6 +82,7 @@ static void rc_memory_dereg()
     
     if (NULL != IBDEV->lcl_mr) {
         rc = ibv_dereg_mr(IBDEV->lcl_mr);
+	//fprintf(stderr, "deregistering addr %p\n", IBDEV->lcl_mr->addr);
         if (0 != rc) {
             rdma_error(log_fp, "Cannot deregister memory");
         }
@@ -96,6 +97,7 @@ static void rc_qp_destroy(dare_ib_ep_t* ep)
     if (NULL == ep) return;
 
     rc = ibv_destroy_qp(ep->rc_ep.rc_qp.qp);
+    //fprintf(stderr, "rc_qp_destroy ret is %d\n", rc);
     if (0 != rc) {
         rdma_error(log_fp, "ibv_destroy_qp failed because %s\n", strerror(rc));
     }
@@ -110,6 +112,7 @@ static void rc_cq_destroy(dare_ib_ep_t* ep)
     if (NULL == ep) return;
 
     rc = ibv_destroy_cq(ep->rc_ep.rc_cq.cq);
+    //fprintf(stderr, "rc_cq_destroy ret is %d\n", rc);
     if (0 != rc) {
         rdma_error(log_fp, "ibv_destroy_cq failed because %s\n", strerror(rc));
     }
@@ -325,6 +328,7 @@ static int rc_prerequisite()
     
     /* Allocate a RC protection domain */
     IBDEV->rc_pd = ibv_alloc_pd(IBDEV->ib_dev_context);
+    fprintf(stderr, "pd is register at %p\n", (void *)IBDEV->rc_pd);
     if (NULL == IBDEV->rc_pd) {
         error_return(1, log_fp, "Cannot create PD\n");
     }
@@ -342,6 +346,7 @@ static int rc_memory_reg()
 {  
     /* Register memory for local log */    
     IBDEV->lcl_mr = ibv_reg_mr(IBDEV->rc_pd, SRV_DATA->log, sizeof(dare_log_t) + SRV_DATA->log->len, IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_LOCAL_WRITE);
+    //fprintf(stderr, "node %"PRIu32" log buffer is registered at %p\n", SRV_DATA->config.idx, (void*)IBDEV->lcl_mr->addr);
     if (NULL == IBDEV->lcl_mr) {
         error_return(1, log_fp, "Cannot register memory because %s\n", strerror(errno));
     }
@@ -522,22 +527,26 @@ static int poll_cq(int max_wc, struct ibv_cq *cq)
 
 int rc_disconnect_server()
 {
+    //fprintf(stderr, "entering disconnect, group size is %"PRIu32"\n", SRV_DATA->config.cid.size);
     int rc;
     uint32_t i;
     dare_ib_ep_t *ep;
     for (i = 0; i < SRV_DATA->config.cid.size; i++)
     {
+        ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
+	//fprintf(stderr, "ndoe id %"PRIu32" is destroying %"PRIu32", ep->rc_connected is %d\n", SRV_DATA->config.idx, i, ep->rc_connected);
         if (0 == ep->rc_connected || i == SRV_DATA->config.idx)
             continue;
-        ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
+
         ep->rc_connected = 0;  
 
-        rc = rc_qp_reset(ep);
-        if (0 != rc) {
-            fprintf(stderr, "Cannot reset LOG QP for server %"PRIu32"\n", i);
-            return -1;
-        }
+	rc_qp_destroy(ep);
+	rc_cq_destroy(ep);
     }
+    ibv_dealloc_pd(IBDEV->rc_pd);
 
+    rc_memory_dereg();
+
+    ibv_close_device(IBDEV->ib_dev_context);
     return 0;
 }

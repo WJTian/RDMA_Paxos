@@ -36,10 +36,10 @@ int *replica_on_accept(event_manager* ev_mgr)
 {
     if (pthread_self() == check_point_thread)
     {
-	fprintf(stderr, "libe vent thread is called, self id is %d %d\n", pthread_self(), check_point_thread);
+	//fprintf(stderr, "libevent thread is called, self id is %d\n", pthread_self());
         return NULL;
     }
-     fprintf(stderr, "other thread is called, self id is %d\n", pthread_self());
+    //fprintf(stderr, "other thread is called, self id is %d\n", pthread_self());
     
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id != leader_id)
@@ -75,6 +75,8 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
         HASH_DEL(ev_mgr->leader_hash_map, ret);
 
         rsm_op(ev_mgr->con_node, 0, NULL, P_CLOSE, &close_vs);
+	// nop is only for sending the close() consensus result to the replicas.
+	rsm_op(ev_mgr->con_node, 0, NULL, P_NOP, NULL);
     }
 mgr_on_close_exit:
     return;
@@ -248,6 +250,7 @@ int disconnct_inner(){
             // do thing.  
         }
         if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
+	    fprintf(stderr,"disconnect is approved\n");
             int ret = rc_disconnect_server();
             if (-1==ret){ // error
                 return ret;
@@ -275,8 +278,7 @@ int disconnct_inner(){
 
 static int check_point_condtion(void* arg)
 {
-	//fprintf(stderr, "checking point\n");
-	event_manager* ev_mgr = arg;
+    event_manager* ev_mgr = arg;
     int ret;
     if (g_checkpoint_flag == NO_DISCONNECTED)
     	ret = 0;
@@ -284,9 +286,11 @@ static int check_point_condtion(void* arg)
         unsigned int connection_num = HASH_COUNT(ev_mgr->replica_hash_map);
         if (connection_num == 0)
         {
+	    fprintf(stderr, "flag is set to be DISCONNECTED_APPROVE\n");
             g_checkpoint_flag = DISCONNECTED_APPROVE;
             ret = 1;
         } else {
+	    fprintf(stderr, "flag is set to be NO_DISCONNECTED\n");
             g_checkpoint_flag = NO_DISCONNECTED;
             ret = 0;
         }
@@ -338,6 +342,11 @@ static void update_state(db_key_type index,void* arg){
             }
             do_action_close(retrieve_data->clt_id,arg);
             break;
+	case P_NOP:
+	    if(output!=NULL){
+                fprintf(output,"Operation: NOP.\n");
+            }
+	    break; // nop is only for sending the close() consensus result to the replcias
         default:
             break;
     }

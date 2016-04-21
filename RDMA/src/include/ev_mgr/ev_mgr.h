@@ -73,4 +73,6 @@ typedef enum check_point_state_t{
 
 // declare
 int disconnct_inner();
+int reconnect_inner();
+
 #endif

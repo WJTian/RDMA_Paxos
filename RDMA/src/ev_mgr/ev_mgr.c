@@ -234,6 +234,16 @@ do_action_send_exit:
     return;
 }
 
+
+//TODO reconnect_init
+
+// 0 is ok
+// reconnect works for cheng
+int reconnect_inner(){
+	return 0;
+}
+
+
 //TODO declear g_checkpoint_flag
 
 // which is called by libevent

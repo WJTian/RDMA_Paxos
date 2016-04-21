@@ -80,7 +80,7 @@ BIND_HOST="0.0.0.0"
 BIND_PORT=12345
 
 #disconnect cmd
-DISCONNECT_CMD="disconnect"
+DISCONNECT_CMD="disconnect\n"
 DISCONNECT_SOCK="/tmp/checkpoint.server.sock"
 # The unix socket I am listening for accepting internal request.
 UNIX_SOCK="/tmp/guard.sock"
@@ -273,6 +273,7 @@ def inner_checkpoint(node_id,round_id):
 			subprocess.call(RSYNC_CMD,shell=True)
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
+	sys.stdout.flush()
 	return
 
 
@@ -317,6 +318,7 @@ def inner_restore(node_id,round_id):
 			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
 		shutil.rmtree(tmpDir)
 		reset_pid()	
+	sys.stdout.flush()
 	return 
 
 def inner_service(cmd,node_id,round_id):
@@ -386,6 +388,7 @@ class InnerHandler(SocketServer.BaseRequestHandler):
 			else: # This is a outer call
 				route(cmd,node_id,round_id)
 				self.request.sendall("[inner] OK. The calling is routed.\n")
+			sys.stdout.flush()
 
 # The function will start outer interface handler in a thread
 def start_outer(args):

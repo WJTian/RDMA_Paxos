@@ -12,7 +12,7 @@ RE_NODE="2"  # 10.22.1.3
 ps -elf | grep redis
 echo "set key 1" | $REDIS_CLI_1
 echo "get key" | $REDIS_CLI_1
-# send a command to RDMA to disconnect 
+# send a command to RDMA to disconnect (only used for debug)
 # echo "disconnect" | nc -U /tmp/checkpoint.server.sock
 echo "checkpoint $CK_NODE 1\n" | nc -U /tmp/guard.sock
 sleep 3 

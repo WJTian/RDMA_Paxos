@@ -22,4 +22,4 @@ cfg_path=../../../RDMA/target/nodes.local.cfg
 SOCK_FILE=/tmp/guard.sock
 sudo rm -rf $SOCK_FILE
 
-python ./guard.py $self_id $aim_name $cfg_path
+python ./guard.py $self_id $aim_name $cfg_path &> guard.log

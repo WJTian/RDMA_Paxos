@@ -250,7 +250,6 @@ def send_disconnect_cmd():
 
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
-	sys.stdout.flush()
 	# mkdir dump
 	tmpDir = None
 	try:
@@ -274,6 +273,7 @@ def inner_checkpoint(node_id,round_id):
 			subprocess.call(RSYNC_CMD,shell=True)
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
+	sys.stdout.flush()
 	return
 
 
@@ -295,7 +295,6 @@ def reset_pid():
 	
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
-	sys.stdout.flush()
 	# mkdir dump
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"
@@ -319,6 +318,7 @@ def inner_restore(node_id,round_id):
 			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
 		shutil.rmtree(tmpDir)
 		reset_pid()	
+	sys.stdout.flush()
 	return 
 
 def inner_service(cmd,node_id,round_id):
@@ -388,6 +388,7 @@ class InnerHandler(SocketServer.BaseRequestHandler):
 			else: # This is a outer call
 				route(cmd,node_id,round_id)
 				self.request.sendall("[inner] OK. The calling is routed.\n")
+			sys.stdout.flush()
 
 # The function will start outer interface handler in a thread
 def start_outer(args):

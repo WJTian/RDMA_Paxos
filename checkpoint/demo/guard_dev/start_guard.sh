@@ -8,7 +8,8 @@ if [ ! -z "$1" ]; then
 	aim_name=$1
 fi
 
-self_id=0
+ID_IP=`ifconfig eth4 | grep "inet addr" | awk  'BEGIN {FS = ":"; };{print $2}' | awk '{print $1}' | awk 'BEGIN {FS="."; }; {print $4}'`
+self_id=`expr $ID_IP - 1 `
 
 if [ ! -z "$2" ]; then
 	self_id=$2

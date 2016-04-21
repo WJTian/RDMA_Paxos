@@ -80,7 +80,7 @@ BIND_HOST="0.0.0.0"
 BIND_PORT=12345
 
 #disconnect cmd
-DISCONNECT_CMD="disconnect"
+DISCONNECT_CMD="disconnect\n"
 DISCONNECT_SOCK="/tmp/checkpoint.server.sock"
 # The unix socket I am listening for accepting internal request.
 UNIX_SOCK="/tmp/guard.sock"
@@ -250,6 +250,7 @@ def send_disconnect_cmd():
 
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
+	sys.stdout.flush()
 	# mkdir dump
 	tmpDir = None
 	try:
@@ -294,6 +295,7 @@ def reset_pid():
 	
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
+	sys.stdout.flush()
 	# mkdir dump
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"

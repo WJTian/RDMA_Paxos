@@ -258,6 +258,8 @@ def inner_checkpoint(node_id,round_id):
 		pass
 	if tmpDir:
 		send_disconnect_cmd()
+		print "[inner_checkpoint] sleep 1 seconds to wait for disconnect"
+		time.sleep(1)	
 		cmd="/sbin/criu dump -v4 --shell-job --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		retcode = subprocess.call(cmd,shell=True)

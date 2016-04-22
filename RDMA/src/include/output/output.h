@@ -5,10 +5,10 @@
 #include "../util/common-header.h"
 
 #define CHECK_PERIOD 1000
-
+#define CHECK_GOBACK 100
 #define HASH_BUFFER_SIZE 16
 
-struct output_handler_t
+typedef struct output_handler_t
 {
 	long count; // This count means the length of the output_list. once the list is pushed a hash value, the count will be increased.
 	list *output_list;
@@ -17,16 +17,15 @@ struct output_handler_t
 	uint64_t hash; // Thie hash means the last hash value in the output_list.
 	unsigned char hash_buffer[HASH_BUFFER_SIZE];
 	int hash_buffer_curr;
-};
-typedef struct output_handler_t output_handler_t;
+}output_handler_t;
 
-struct output_peer_t
+typedef struct output_peer_t
 {
 	uint32_t node_id;
 	uint64_t hash;
 	long idx;
-};
-typedef struct output_peer_t output_peer_t;
+}output_peer_t;
+
 
 void init_output();
 

@@ -260,7 +260,8 @@ def inner_checkpoint(node_id,round_id):
 		send_disconnect_cmd()
 		print "[inner_checkpoint] sleep 1 seconds to wait for disconnect"
 		time.sleep(1)	
-		cmd="/sbin/criu dump -v4 --shell-job --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
+		#remove --shell-job
+		cmd="/sbin/criu dump -v4 --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		retcode = subprocess.call(cmd,shell=True)
 		if retcode:
@@ -313,7 +314,8 @@ def inner_restore(node_id,round_id):
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
-		cmd="/sbin/criu restore -v4  --shell-job -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
+		# remove --shell-job
+		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
 		retcode = subprocess.call(cmd,shell=True)
 		if retcode :

@@ -149,9 +149,9 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 	return retval;
 }
 
-long determine_output(fd){
+long determine_output(int fd){
 	debug_log("[determine_output] fd: %d\n",fd);
-	long retvals=-1;
+	long retval=-1;
 	// A output_handler will be got from different fd
 	output_handler_t* output_handler = get_output_handler_by_fd(fd);
 	if (NULL == output_handler){// error

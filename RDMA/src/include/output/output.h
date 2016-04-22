@@ -69,7 +69,7 @@ int store_output(int fd, const unsigned char *buf, ssize_t ret);
 // decide whether the leader needs to call rsm_op to do output conconsistency
 // return the index of hashvalue in a certain connection(fd).
 // if -1 is returned, means do not do output conconsistency.
-long determine_output(fd);
+long determine_output(int fd);
 
 int do_decision(output_peer_t* output_peers, int group_size);
 

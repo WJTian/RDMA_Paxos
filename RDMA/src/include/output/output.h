@@ -31,6 +31,8 @@ typedef struct output_handler_t
 	unsigned char hash_buffer[HASH_BUFFER_SIZE];
 	// The current water mark of the hash_buffer.
 	int hash_buffer_curr;
+	// how many times a determine_output(fd) was called.
+	long called_cnt;
 }output_handler_t;
 
 //[TODO] output_peer will be redesign
@@ -63,6 +65,12 @@ output_handler_t* get_output_handler_by_fd(int fd);
 // 0 means the input buff is too small to fill the hash_buffer,
 // so that no hash value is putted into output_list.
 int store_output(int fd, const unsigned char *buf, ssize_t ret);
+
+// decide whether the leader needs to call rsm_op to do output conconsistency
+// return the index of hashvalue in a certain connection(fd).
+// if -1 is returned, means do not do output conconsistency.
+long determine_output(fd);
+
 int do_decision(output_peer_t* output_peers, int group_size);
 
 

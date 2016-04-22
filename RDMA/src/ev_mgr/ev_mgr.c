@@ -117,8 +117,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
         if (leader_id == ev_mgr->node_id)
         {
-            long hash_index = determine_output(fd); // decide whether the leader needs to do rsm_op to do output conconsistency
-            // return the index of hashvalue in a certain connection(fd).
+            long hash_index = determine_output(fd); 
             // -1 means nop
             if (hash_index == -1)
             {

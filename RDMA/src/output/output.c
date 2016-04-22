@@ -71,6 +71,7 @@ output_handler_t* new_output_handler(int fd){
 	ptr->hash = 0L;
 	memset(ptr->hash_buffer,0,sizeof(ptr->hash_buffer));
 	ptr->hash_buffer_curr = 0;
+	ptr->called_cnt=0;
 	return ptr;
 }
 
@@ -110,7 +111,7 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 		retval=0;
 		return retval;
 	}
-	// A output_handler will be get from different fd
+	// A output_handler will be got from different fd
 	output_handler_t* output_handler = get_output_handler_by_fd(fd);
 	if (NULL == output_handler){// error
 		debug_log("[store_output] fd:%d, get_output_handler_by_fd error. \n",fd);
@@ -144,6 +145,30 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 			output_handler->count++;
 			retval++; // one hash value is generated.
 		}
+	}
+	return retval;
+}
+
+long determine_output(fd){
+	debug_log("[determine_output] fd: %d\n",fd);
+	long retvals=-1;
+	// A output_handler will be got from different fd
+	output_handler_t* output_handler = get_output_handler_by_fd(fd);
+	if (NULL == output_handler){// error
+		debug_log("[determine_output] fd:%d, get_output_handler_by_fd error. \n",fd);
+		return retval;
+	}
+	output_handler->called_cnt++;
+	if (output_handler->called_cnt%CHECK_PERIOD == 0){ 
+		// A output conconsistency will be triggred.
+		int round_goback = output_handler->count - CHECK_GOBACK;
+		if (round_goback>=0){
+			retval = round_goback;
+		}else{
+			retval = -1;
+		}
+	}else{
+		retval = -1;
 	}
 	return retval;
 }

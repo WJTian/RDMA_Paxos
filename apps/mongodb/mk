@@ -22,6 +22,7 @@ rm mongodb-linux-x86_64-ubuntu1404-$MONGO_VER.tgz
 mv mongodb-linux-x86_64-ubuntu1404-$MONGO_VER install
 
 cd install
+mv ./bin/mongod ./bin/mongod-server
 
 mkdir data
 

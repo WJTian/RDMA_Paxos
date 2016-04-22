@@ -4,6 +4,8 @@
 #include "../include/util/debug.h"
 
 
+
+
 void init_output_mgr(){
 	output_manager_t *output_mgr = get_output_mgr();
 	debug_log("[init_output_mgr] output_mgr is inited at %p\n",output_mgr);
@@ -20,8 +22,6 @@ void deinit_output_mgr(){
 		output_mgr=NULL;
 	}
 }
-
-// inner init function will not be shown to outside.
 
 void init_fd_handler(output_manager_t *output_mgr){
 	if (NULL==output_mgr){
@@ -89,13 +89,15 @@ output_handler_t* get_output_handler_by_fd(int fd){
 	if (NULL == output_mgr){
 		return NULL;
 	}
-
-	output_handler_t* ptr = output_mgr->fd_handler[i];
-	if (NULL == ptr){ // At the first time, output_handler_t need to be inited.
-		ptr = new_output_handler(fd);
-		output_mgr->fd_handler[i] = ptr ; 
+	if (fd>=MAX_FD_SIZE){
+		debug_log("[get_output_handler_by_fd] fd: %d is out of limit %d\n",fd,MAX_FD_SIZE);
+		return NULL;
 	}
-	return output_mgr->fd_handler[i];
+	output_handler_t* ptr = output_mgr->fd_handler[fd];
+	if (NULL == ptr){ // At the first time, output_handler_t need to be inited.		
+		output_mgr->fd_handler[i] = new_output_handler(fd);
+	}
+	return output_mgr->fd_handler[fd];
 }
 
 //accept a buff with size, I will store into different connection (fd).

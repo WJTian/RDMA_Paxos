@@ -46,7 +46,9 @@ typedef struct output_manager_t{
 	output_handler_t* fd_handler[MAX_FD_SIZE];
 }output_manager_t;
 
-output_manager_t * get_output_mgr(); // return an instance of output_mgr
+
+// return an instance of output_mgr
+output_manager_t * get_output_mgr(); 
 
 // [TODO] I need ask Cheng when this function is called to init output manager
 // init_output_mgr() is required to be called in one thread.
@@ -62,6 +64,16 @@ output_handler_t* get_output_handler_by_fd(int fd);
 // so that no hash value is putted into output_list.
 int store_output(int fd, const unsigned char *buf, ssize_t ret);
 int do_decision(output_peer_t* output_peers, int group_size);
+
+
+// private used
+// declear
+
+void init_fd_handler(output_manager_t *output_mgr)
+int deinit_fd_handler(output_manager_t *output_mgr);
+
+output_handler_t* new_output_handler(int fd);
+void delete_output_handler(output_handler_t* ptr);
 
 
 #endif

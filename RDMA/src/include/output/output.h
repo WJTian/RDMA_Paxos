@@ -69,11 +69,10 @@ int do_decision(output_peer_t* output_peers, int group_size);
 // private used
 // declear
 
-void init_fd_handler(output_manager_t *output_mgr)
+void init_fd_handler(output_manager_t *output_mgr);
 int deinit_fd_handler(output_manager_t *output_mgr);
 
 output_handler_t* new_output_handler(int fd);
 void delete_output_handler(output_handler_t* ptr);
-
 
 #endif

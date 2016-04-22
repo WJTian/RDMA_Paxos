@@ -12,6 +12,8 @@
 
 #define ZDATALEN 1024 * 10
 
+#define UNKNOWN_LEADER 9999
+
 static zhandle_t *zh;
 static int is_connected;
 
@@ -159,7 +161,6 @@ int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port)
     }
 
     check_leader(cur_view);
-
     rc = zoo_wget_children(zh, "/election", zoo_wget_children_watcher, (void*)cur_view, NULL);
     if (rc)
     {
@@ -174,8 +175,29 @@ int disconnect_zookeeper()
     rc = zookeeper_close(zh);
     if (rc == ZOK)
         rc = 0;
-    fprintf(stderr, "zookeeper clsoe rc is %d\n", rc);
+    is_connected = 0;
     return rc;
+}
+
+int launch_replica_thread(node* my_node, list* excluded_fd)
+{
+        static int *zoo_fd;
+	int rc = 0;
+	my_node->cur_view.view_id = 1;
+    	my_node->cur_view.req_id = 0;
+        my_node->cur_view.leader_id = UNKNOWN_LEADER;
+	
+    	zoo_fd = (int*)malloc(sizeof(int));
+    	start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port);
+    	listAddNodeTail(excluded_fd, (void*)zoo_fd);
+	if (my_node->consensus_comp == NULL)
+	{
+	    fprintf(stderr, "init consensus comp is wrong\n");
+	    exit(1);
+	}
+	if (pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp) != 0)
+		rc = 1;
+	return rc;
 }
 
 int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
@@ -194,14 +216,14 @@ int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void 
         goto initialize_node_exit;
     }
 
-    my_node->cur_view.view_id = 1;
-    my_node->cur_view.req_id = 0;
-    my_node->cur_view.leader_id = 9999;
+    //my_node->cur_view.view_id = 1;
+    //my_node->cur_view.req_id = 0;
+    /*my_node->cur_view.leader_id = UNKNOWN_LEADER;
 
     int *zoo_fd = (int*)malloc(sizeof(int));
     start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port);
     
-    listAddNodeTail(excluded_fd, (void*)zoo_fd);
+    listAddNodeTail(excluded_fd, (void*)zoo_fd);*/
 
     int build_log_ret = 0;
     if(log_path==NULL){
@@ -239,7 +261,7 @@ int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void 
         goto initialize_node_exit;
     }
 
-    pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp);
+    //pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp);
     
     flag = 0;
 initialize_node_exit:

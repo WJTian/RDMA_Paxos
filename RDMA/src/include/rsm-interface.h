@@ -17,7 +17,7 @@ extern "C" {
 	void mgr_on_check(int fd, const void* buf, size_t ret, struct event_manager_t* ev_mgr);
 	void mgr_on_close(int fd, struct event_manager_t* ev_mgr);
 	int *replica_on_accept(struct event_manager_t* ev_mgr);
-
+	int mgr_on_process_init(struct event_manager_t* ev_mgr);
 #ifdef __cplusplus
 }
 #endif

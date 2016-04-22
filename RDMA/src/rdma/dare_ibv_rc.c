@@ -456,7 +456,7 @@ static int rc_qp_rtr_to_rts(dare_ib_ep_t *ep)
     return 0;
 }
 
-int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, enum ibv_wr_opcode opcode, rem_mem_t rm, int send_flags, int poll_completion)
+int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, enum ibv_wr_opcode opcode, rem_mem_t *rm, int send_flags, int poll_completion)
 {
     int rc;
 
@@ -489,14 +489,15 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
         }
     }   
 
-    wr.wr.rdma.remote_addr = rm.raddr;
-    wr.wr.rdma.rkey        = rm.rkey;
+    wr.wr.rdma.remote_addr = rm->raddr;
+
+    wr.wr.rdma.rkey        = rm->rkey;
+   
     rc = ibv_post_send(ep->rc_ep.rc_qp.qp, &wr, &bad_wr);
     if (0 != rc) {
         error_return(1, log_fp, "ibv_post_send failed because %s [%s]\n", 
             strerror(rc), rc == EINVAL ? "EINVAL" : rc == ENOMEM ? "ENOMEM" : rc == EFAULT ? "EFAULT" : "UNKNOWN");
     }
-
     return 0;
 }
 
@@ -528,7 +529,6 @@ static int poll_cq(int max_wc, struct ibv_cq *cq)
 int rc_disconnect_server()
 {
     //fprintf(stderr, "entering disconnect, group size is %"PRIu32"\n", SRV_DATA->config.cid.size);
-    int rc;
     uint32_t i;
     dare_ib_ep_t *ep;
     for (i = 0; i < SRV_DATA->config.cid.size; i++)

@@ -12,6 +12,27 @@ volatile int g_checkpoint_flag = NO_DISCONNECTED;
 
 static pthread_t check_point_thread; // a global pid
 
+int comp(void *ptr, void *key)
+{
+    return (*(int*)ptr == *(int*)key) ? 1 : 0;
+}
+
+int mgr_on_process_init(event_manager* ev_mgr)
+{
+	if (ev_mgr->excluded_fd != NULL)
+		listRelease(ev_mgr->excluded_fd);
+
+	ev_mgr->excluded_fd = NULL;
+	ev_mgr->excluded_fd = listCreate();
+	ev_mgr->excluded_fd->match = &comp;
+	int rc = launch_replica_thread(ev_mgr->con_node, ev_mgr->excluded_fd);
+	if (rc != 0 )
+		fprintf(stderr, "EVENT MANAGER : Cannot create replica thread\n");
+	if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0) 
+		fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
+	return rc;
+}
+
 void leader_on_accept(int fd, event_manager* ev_mgr)
 {
     if (pthread_self() == check_point_thread)
@@ -44,12 +65,13 @@ int *replica_on_accept(event_manager* ev_mgr)
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id != leader_id)
     {
-        request_record* retrieve_data = NULL;
+	request_record* retrieve_data = NULL;
         size_t data_size;
+	
         while (retrieve_data == NULL){
             retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
         }
-        replica_socket_pair* ret = NULL;
+	replica_socket_pair* ret = NULL;
         HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
         ret->accepted = 1;
         return &ret->s_p;
@@ -85,7 +107,7 @@ mgr_on_close_exit:
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
     if (pthread_self() == check_point_thread)
-        return NULL;
+        return;
     
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
@@ -141,7 +163,7 @@ static int keep_alive(int fd) {
 
 void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
     if (pthread_self() == check_point_thread)
-        return NULL;
+        return;
     
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
@@ -201,9 +223,9 @@ static void do_action_connect(view_stamp clt_id,void* arg){
         listAddNodeTail(ev_mgr->excluded_fd, (void*)fd);
 
         connect(*fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
+
         ret->p_s = fd;
         SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection with server application.\n");
-
         set_blocking(*fd, 0);
         
         int enable = 1;
@@ -363,10 +385,6 @@ static void update_state(db_key_type index,void* arg){
     return;
 }
 
-int comp(void *ptr, void *key)
-{
-    return (*(int*)ptr == *(int*)key) ? 1 : 0;
-}
 
 event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* log_path){
     
@@ -428,15 +446,14 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
         err_log("EVENT MANAGER : Cannot Set Up The Database.\n");
         goto mgr_exit_error;
     }
+    //ev_mgr->excluded_fd = listCreate(); /* On error, NULL is returned. Otherwise the pointer to the new list. */
+    //ev_mgr->excluded_fd->match = &comp;
 
-    ev_mgr->excluded_fd = listCreate(); /* On error, NULL is returned. Otherwise the pointer to the new list. */
-    ev_mgr->excluded_fd->match = &comp;
-
-    if (ev_mgr->excluded_fd == NULL)
+    /*if (ev_mgr->excluded_fd == NULL)
     {
         err_log("EVENT MANAGER : Cannot create excluded descriptor list.\n");
         goto mgr_exit_error;
-    }
+    }*/
 
     ev_mgr->leader_hash_map = NULL;
     ev_mgr->replica_hash_map = NULL;
@@ -448,8 +465,9 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
         goto mgr_exit_error;
     }
 
-    if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
-    	fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
+    mgr_on_process_init(ev_mgr);
+    /*if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
+    	fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");*/
 
 	return ev_mgr;
 

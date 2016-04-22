@@ -124,6 +124,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
 #endif
 
         view_stamp next = get_next_view_stamp(comp);
+	fprintf(comp->sys_log_file, "handling request, view id is %"PRIu32", req id  %"PRIu32", type is %d, data is (%s), size is %zu\n", next.view_id, next.req_id, type, (char*)data, data_size);
         if (type == P_CONNECT)
         {
             clt_id->view_id = next.view_id;
@@ -183,6 +184,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         entry->clt_id.view_id = (type != P_NOP)?clt_id->view_id:0;
         entry->clt_id.req_id = (type != P_NOP)?clt_id->req_id:0;
 
+	fprintf(comp->sys_log_file, "storing view id is  %"PRIu32", req id %"PRIu32", entry addr is %p, end is %"PRIu64"\n", next.view_id, next.req_id, (void*)entry, SRV_DATA->log->end);
         request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
         if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data))
         {
@@ -196,6 +198,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         uint64_t bit_map = (1<<comp->node_id);
         rem_mem_t rm;
 
+ 	memset(&rm, 0, sizeof(rem_mem_t));
         for (i = 0; i < comp->group_size; i++) {
             ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
             if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
@@ -203,8 +206,9 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
 
             rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
             rm.rkey = ep->rc_ep.rmt_mr.rkey;
+	    fprintf(comp->sys_log_file, "sending post to %"PRIu32", remote addr %p, view id is %"PRIu32", req id %"PRIu32", type is %d, data is (%s), bip is %"PRIu64"\n", i, (void*)rm.raddr, next.view_id, next.req_id, type, (char*)data, bit_map);
 
-            post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm, send_flags[i], poll_completion[i]);
+            post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags[i], poll_completion[i]);
         }
 recheck:
         for (i = 0; i < MAX_SERVER_COUNT; i++) {
@@ -213,8 +217,8 @@ recheck:
                 bit_map = bit_map | (1<<entry->ack[i].node_id);
             }
         }
-        if (reached_quorum(bit_map, comp->group_size))
-        {
+        if (reached_quorum(bit_map, comp->group_size)) {
+	    fprintf(comp->sys_log_file, "reached quorum, view id is %"PRIu32", req id %"PRIu32", type is %d, data is (%s), bip is %"PRIu64"\n", next.view_id, next.req_id, type, (char*)data, bit_map);
             //TODO: do we need the lock here?
             while (entry->msg_vs.req_id > comp->highest_committed_vs->req_id + 1);
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
@@ -252,18 +256,17 @@ void *handle_accept_req(void* arg)
 
     set_affinity(1);
 
-    fprintf(stderr, "replica thread is called, self id is %d\n", pthread_self());
     for (;;)
     {
         if (comp->cur_view->leader_id != comp->node_id)
         {
             if (comp->uc(comp->up_para))
                 return NULL;
+	
+	   entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
 
-            entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
-            if (entry->data_size != 0)
+           if (entry->data_size != 0)
             {
-
 #ifdef MEASURE_LATENCY
                 clock_handler c_k;
                 clock_init(&c_k);
@@ -308,7 +311,7 @@ void *handle_accept_req(void* arg)
 
                     rem_mem_t rm;
                     dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[entry->node_id].ep;
-
+		    memset(&rm, 0, sizeof(rem_mem_t));
                     uint32_t *send_count_ptr = &(ep->rc_ep.rc_qp.send_count);
                     int send_flags, poll_completion = 0;
 
@@ -325,7 +328,7 @@ void *handle_accept_req(void* arg)
                     rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
                     rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
-                    post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, rm, send_flags, poll_completion);
+                    post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags, poll_completion);
 
                     if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
                     {

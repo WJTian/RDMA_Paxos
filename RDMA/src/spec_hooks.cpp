@@ -107,6 +107,41 @@ extern "C" int __libc_start_main(
 	return ret;
 }
 
+extern "C" pid_t fork(void)
+{
+	typedef pid_t (*orig_fork_type)(void);
+	static orig_fork_type orig_fork;
+	if (!orig_fork)
+		orig_fork = (orig_fork_type) dlsym(RTLD_NEXT, "fork");
+	pid_t ret = orig_fork();
+	if (ret == 0) // child process
+	{
+		fprintf(stderr, "creating internal threads\n");
+		// create replica thread and libevent thread
+		mgr_on_process_init(ev_mgr);
+	} else {
+		if (ret<0)
+		{
+			fprintf(stderr, "fork() failed\n");
+			exit(1);
+		}
+		// parent process
+	}
+	return ret;
+}
+
+
+
+extern "C" int accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
+{
+        typedef int (*orig_accept4_type)(int, sockaddr *, socklen_t *,int);
+        static orig_accept4_type orig_accept4;
+        if (!orig_accept4)
+                orig_accept4 = (orig_accept4_type) dlsym(RTLD_NEXT, "accept4");
+	int ret = orig_accept4(socket, address, address_len, flags);
+	return ret;
+}
+
 extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	typedef int (*orig_accept_type)(int, sockaddr *, socklen_t *);
@@ -187,6 +222,32 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 
 	return ret;
 }
+
+
+extern "C" ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+                 struct sockaddr *src_addr, socklen_t *addrlen)
+{
+	typedef ssize_t (*orig_recvfrom_type)(int, void *, size_t, int, struct sockaddr*, socklen_t*);
+        static orig_recvfrom_type orig_recvfrom;
+        if (!orig_recvfrom)
+                orig_recvfrom = (orig_recvfrom_type) dlsym(RTLD_NEXT, "recvfrom");
+        ssize_t ret = orig_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+	return ret;
+
+}
+
+extern "C" ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags)
+{
+        typedef ssize_t (*orig_recvmsg_type)(int, struct msghdr *, int);
+        static orig_recvmsg_type orig_recvmsg;
+        if (!orig_recvmsg)
+                orig_recvmsg = (orig_recvmsg_type) dlsym(RTLD_NEXT, "recvmsg");
+        ssize_t ret = orig_recvmsg(sockfd, msg, flags);
+        return ret;
+
+}
+
+
 
 extern "C" ssize_t write(int fd, const void *buf, size_t count)
 {

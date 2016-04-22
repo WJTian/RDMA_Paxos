@@ -23,7 +23,7 @@ void deinit_output_mgr(){
 
 // inner init function will not be shown to outside.
 
-static void init_fd_handler(output_manager_t *output_mgr){
+void init_fd_handler(output_manager_t *output_mgr){
 	if (NULL==output_mgr){
 		return;
 	}
@@ -31,7 +31,7 @@ static void init_fd_handler(output_manager_t *output_mgr){
 }
 
 // return how many fd handler has been freed.
-static int deinit_fd_handler(output_manager_t *output_mgr){
+int deinit_fd_handler(output_manager_t *output_mgr){
 	if (NULL==output_mgr){
 		return 0;
 	}
@@ -47,6 +47,7 @@ static int deinit_fd_handler(output_manager_t *output_mgr){
 	}
 	return cnt;
 }
+
 output_manager_t * get_output_mgr(){
 	static output_manager_t * inner_output_mgr=NULL; // This is a singleton of output_mgr
 	if (NULL == inner_output_mgr){

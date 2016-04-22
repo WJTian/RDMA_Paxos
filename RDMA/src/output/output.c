@@ -51,27 +51,27 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 	int push_size =0;
 	retval=0; // default value means no hash value is generated.
 	while (push_size < buff_size){ // Which means the input buff has not been handled.
-		int left_space = HASH_BUFFER_SIZE - output_handler.hash_buffer_curr;
+		int left_space = HASH_BUFFER_SIZE - output_handler->hash_buffer_curr;
 		int wait_size = buff_size - push_size;
 		int actual_size = min(left_space,wait_size); 
-		unsigned char * dest_ptr = output_handler.hash_buffer + output_handler.hash_buffer_curr;
+		unsigned char * dest_ptr = output_handler->hash_buffer + output_handler->hash_buffer_curr;
 		memcpy(dest_ptr,buff,actual_size);
-		output_handler.hash_buffer_curr+=actual_size;
-		left_space = HASH_BUFFER_SIZE - output_handler.hash_buffer_curr;
+		output_handler->hash_buffer_curr+=actual_size;
+		left_space = HASH_BUFFER_SIZE - output_handler->hash_buffer_curr;
 		push_size+=actual_size;
 		if (0==left_space){ // The hash buffer is full.
-			output_handler.hash = crc64(output_handler.hash,output_handler.hash_buffer,HASH_BUFFER_SIZE);
+			output_handler->hash = crc64(output_handler->hash,output_handler->hash_buffer,HASH_BUFFER_SIZE);
 			// curr is clear, since new hash is generated.
-			output_handler.hash_buffer_curr=0;
+			output_handler->hash_buffer_curr=0;
 			debug_log("[store_output] fd:%d, hash is generated, hash:0x%"PRIx64"\n",fd, output_handler->hash);
 
 			// add hash into output_list;
 			uint64_t *new_hash = (uint64_t*)malloc(sizeof(uint64_t));
-			*new_hash = output_handler.hash;
-			listAddNodeTail(output_handler.output_list, (void*)new_hash);
+			*new_hash = output_handler->hash;
+			listAddNodeTail(output_handler->output_list, (void*)new_hash);
 			debug_log("[store_output] fd:%d, hash is putted into output_list. count:%ld, hash:0x%"PRIx64"\n", 
 				fd, output_handler->count, output_handler->hash);
-			output_handler.count++;
+			output_handler->count++;
 			retval++; // one hash value is generated.
 		}
 	}

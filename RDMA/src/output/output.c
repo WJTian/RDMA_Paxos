@@ -1,33 +1,99 @@
 #include "../include/output/output.h"
 #include "../include/output/crc64.h"
 #include "../include/util/debug.h"
+#include "adlist.h"
 
-//[TODO] The following extern will be removed.
-// output_handler will be get from different fd.
-//output_handler_t output_handler;
+void init_output_mgr(){
+	output_manager_t *output_mgr = get_output_mgr();
+	debug_log("[init_output_mgr] output_mgr is inited at %p\n",output_mgr);
+}
 
-//[TODO] The init will consider how to assign a output_handler for a certain fd.
-void init_output(int fd)
-{
-	// output_handler.output_list = listCreate();
-	// output_handler.count = 0;
-	// output_handler.prev_offset = 0;
-	// pthread_mutex_init(&output_handler.lock, NULL);
-	// output_handler.hash = 0;
+void deinit_output_mgr(){
+	output_manager_t *output_mgr = get_output_mgr();
+	if (output_mgr){ 
+		debug_log("[deinit_output_mgr] output_mgr(%p) will be freed\n",output_mgr);
+		//[TODO] free output_handler first
+		int num = deinit_fd_handler(output_mgr);
+		debug_log("[deinit_output_mgr] %d fd_handler have been freed\n",num);
+		free(output_mgr);
+		output_mgr=NULL;
+	}
+}
 
-	// output_handler.hash_buffer_curr =0;
-	// memset(output_handler.hash_buffer,0,sizeof(output_handler.hash_buffer));
-	// return;
+// inner init function will not be shown to outside.
+
+static void init_fd_handler(output_manager_t *output_mgr){
+	if (NULL==output_mgr){
+		return;
+	}
+	memset(output_mgr->fd_handler,NULL,sizeof(output_mgr->fd_handler));
+}
+
+// return how many fd handler has been freed.
+static int deinit_fd_handler(output_manager_t *output_mgr){
+	if (NULL==output_mgr){
+		return 0;
+	}
+	int cnt=0;
+	for (int i=0;i<MAX_FD_SIZE;i++){
+		output_handler_t* ptr = output_mgr->fd_handler[i];
+		if (ptr){
+			delete_output_handler(ptr);
+			ptr=NULL;
+			output_mgr->fd_handler[i] = NULL;
+			cnt++;
+		}
+	}
+	return cnt;
+}
+output_manager_t * get_output_mgr(){
+	static output_manager_t * inner_output_mgr=NULL; // This is a singleton of output_mgr
+	if (NULL == inner_output_mgr){
+		//init output manager
+		inner_output_mgr = (output_manager_t *)malloc(sizeof(output_manager_t *)); // it will be freed in deinit_output_mgr
+		init_fd_handler(inner_output_mgr);
+	}
+	return inner_output_mgr;
 }
 
 static int min(int a, int b){
 	return a<b?a:b;
 }
 
+// malloc a output_handler_t for this fd
+output_handler_t* new_output_handler(int fd){
+	output_handler_t* ptr = (output_handler_t*)malloc(sizeof(output_handler_t));
+	ptr->fd = fd;
+	ptr->count = 0;
+	ptr->output_list = listCreate(); 
+	ptr->hash = 0L;
+	memset(ptr->hash_buffer,0,sizeof(ptr->hash_buffer));
+	ptr->hash_buffer_curr = 0;
+	return ptr;
+}
+
+void delete_output_handler(output_handler_t* ptr){
+	if (NULL == ptr){
+		return;
+	}
+	listRelease(ptr->output_list);
+	ptr->output_list = NULL;
+	free(ptr);
+}
 
 output_handler_t* get_output_handler_by_fd(int fd){
-	debug_log("[get_output_handler_by_fd] has not been implemented yet. fd:%d\n",fd);
-	return NULL;
+	debug_log("[get_output_handler_by_fd] fd: %d \n",fd);
+	output_manager_t *output_mgr = get_output_mgr();
+	if (NULL == output_mgr){
+		return NULL;
+	}
+
+	output_handler_t* ptr = output_mgr->fd_handler[i];
+	if (NULL == ptr){ // At the first time, output_handler_t need to be inited.
+		ptr = new_output_handler(fd);
+		output_mgr->fd_handler[i] = ptr ; 
+	}
+	return output_mgr->fd_handler[i];
 }
 
 //accept a buff with size, I will store into different connection (fd).

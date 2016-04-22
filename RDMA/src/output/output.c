@@ -1,7 +1,8 @@
 #include "../include/output/output.h"
 #include "../include/output/crc64.h"
+#include "../include/output/adlist.h"
 #include "../include/util/debug.h"
-#include "adlist.h"
+
 
 void init_output_mgr(){
 	output_manager_t *output_mgr = get_output_mgr();

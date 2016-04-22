@@ -4,6 +4,8 @@
 #include "../include/rdma/dare.h"
 #include "../include/ev_mgr/check_point_thread.h"
 
+#include "../include/output/output.h"
+
 #include <fcntl.h>
 #include <netinet/tcp.h>
 #include <sys/stat.h>

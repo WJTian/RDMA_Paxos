@@ -30,9 +30,14 @@ typedef struct output_peer_t output_peer_t;
 
 void init_output();
 
-extern output_handler_t output_handler;
+//[TODO] The following extern will be removed.
+// output_handler will be get from different fd.
+//extern output_handler_t output_handler;
 
-void store_output(int fd, const unsigned char *buf, ssize_t ret);
+// It will return the number of hash value were putted into the output_list.
+// 0 means the input buff is too small to fill the hash_buffer,
+// so that no hash value is putted into output_list.
+int store_output(int fd, const unsigned char *buf, ssize_t ret);
 int do_decision(output_peer_t* output_peers, int group_size);
 
 

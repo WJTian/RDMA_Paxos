@@ -263,6 +263,11 @@ extern "C" ssize_t write(int fd, const void *buf, size_t count)
 		fstat(fd, &sb);
 		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
 		{
+			// add by jingle
+			// It is better to differ unix socket and tcp socket and here.
+			// 1. to seperate based on whether libevent thread. [This check has been done in the mgr_on_check. Good]
+			// 2. to seperate by calling getsockopt.
+			dprintf("[TODO] fd %d will be passed into mgr_on_check. However open tcp socket is valid not unix socket is allowed.\n",fd);
 			mgr_on_check(fd, buf, ret, ev_mgr);
 		}
 	}

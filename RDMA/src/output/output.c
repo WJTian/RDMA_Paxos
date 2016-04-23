@@ -177,10 +177,10 @@ long determine_output(int fd){
 }
 
 // if not found, it will return 0
-uint64_t get_val_by_index(list *list_head, int index){
+uint64_t get_val_by_index(list *list_head, long index){
 	listNode *ln;
     listIter li;
-    int cnt=0;
+    long cnt=0;
     uint64_t retval = 0;
     listRewind(list_head,&li);
     while((ln = listNext(&li))) {

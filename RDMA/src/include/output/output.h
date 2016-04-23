@@ -82,6 +82,11 @@ int do_decision(output_peer_t* peer_array, int group_size);
 // If it is impossible to get hash value, 0 will be returned as default value.
 uint64_t get_output_hash(int fd, long hash_index);
 
+// Once a fd is closed the output data structure should be freed.
+// 0 is ok, -1 is error
+int del_output(int fd);
+
+
 // private used
 // declear
 

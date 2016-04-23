@@ -69,6 +69,8 @@ output_handler_t* new_output_handler(int fd){
 	ptr->fd = fd;
 	ptr->count = 0;
 	ptr->output_list = listCreate(); 
+	// set free function 
+	ptr->output_list->free = free;
 	ptr->hash = 0L;
 	memset(ptr->hash_buffer,0,sizeof(ptr->hash_buffer));
 	ptr->hash_buffer_curr = 0;
@@ -83,6 +85,36 @@ void delete_output_handler(output_handler_t* ptr){
 	listRelease(ptr->output_list);
 	ptr->output_list = NULL;
 	free(ptr);
+}
+
+int del_output_handler_by_fd(int fd){
+	debug_log("[del_output_handler_by_fd] fd: %d \n",fd);
+	int retval = -1;
+	output_manager_t *output_mgr = get_output_mgr();
+	if (NULL == output_mgr){
+		return retval;
+	}
+	if (fd>=MAX_FD_SIZE){
+		debug_log("[del_output_handler_by_fd] fd: %d is out of limit %d\n",fd,MAX_FD_SIZE);
+		return retval;
+	}
+	output_handler_t* ptr = output_mgr->fd_handler[fd];
+	if (NULL == ptr){
+		debug_log("[del_output_handler_by_fd] the handler is NULL for fd:%d, no need to delete.\n",fd);
+		retval =0;
+	}else{
+		// release output_list
+		if (ptr->output_list){
+			// The value will be freed during iteratering.
+			listRelease(ptr->output_list);
+			ptr->output_list=NULL;
+		}
+		free(ptr);
+		ptr=NULL;
+		output_mgr->fd_handler[fd]=NULL;
+		retval =0;
+	}
+	return retval;
 }
 
 output_handler_t* get_output_handler_by_fd(int fd){
@@ -215,5 +247,9 @@ uint64_t get_output_hash(int fd, long hash_index){
 	return retval;
 }
 
-void del_output(int fd){
+int del_output(int fd){
+	debug_log("[del_output] the output data structure of fd: %d will be freed\n",fd);
+	// A output_handler will be got from different fd
+	int retval = del_output_handler_by_fd(fd);
+	return retval;
 }

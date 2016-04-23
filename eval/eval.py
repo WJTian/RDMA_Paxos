@@ -44,21 +44,17 @@ def processBench(config, bench):
     else:
         logger.error("No such hook option")   
 
+    repeats=config.getint(bench,'REPEATS')
     server_input=config.get(bench,'SERVER_INPUT')
     server_kill=config.get(bench,'SERVER_KILL')
     client_program=config.get(bench,'CLIENT_PROGRAM')
     client_input=config.get(bench,'CLIENT_INPUT')
 
-    testname = bench
+    testname,port_str = bench.split(" ")
+    port = port_str.replace("port:","")
+    logging.info("port: " + port)
     testscript = open(testname,"w")
     testscript.write('#! /bin/bash\n')
-    if server_count == 3:
-        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +' & \n'+ 'sleep 2 \n' +
-        'ssh ' + remote_hostone + '  "' + hook_program.replace("myid",node_id_two) + server_program + ' ' + server_input + '" &\n' + 'sleep 2 \n' +
-        'ssh ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '" &\n'+ 'sleep 5 \n' )
-    elif server_count == 1:
-        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' \n' + 'sleep 5 \n')
-    testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"\n' + 'sleep 5 \n')
     if server_count == 3 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
@@ -66,9 +62,28 @@ def processBench(config, bench):
     elif server_count == 1 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' )
 
+    testscript.write('sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+'/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  \n' +
+    'ssh ' + remote_hostone + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+'/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg " \n' +
+     'ssh ' + remote_hosttwo + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+'/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg " \n')
+
+    if server_count == 3:
+        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +' & \n'+ 'sleep 2 \n' +
+        'ssh ' + remote_hostone + '  "' + hook_program.replace("myid",node_id_two) + server_program + ' ' + server_input + '" &\n' + 'sleep 2 \n' +
+        'ssh ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '" &\n'+ 'sleep 5 \n' )
+    elif server_count == 1:
+        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' &\n' + 'sleep 5 \n')
+    testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+    if server_count == 3 & len(server_kill)!=0:
+        testscript.write(server_kill + '\n' +
+        'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
+        'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
+    elif server_count == 1 & len(server_kill)!=0:
+        testscript.write(server_kill + '\n')
+
     testscript.close()
     os.system('chmod +x '+testname)
-    os.system('./' + testname)
+    for repeat in range(0,repeats):
+        os.system('./' + testname + " " + str(repeat))
     #os.system('rm -rf ' + testname)
     #os.system(server_program + " " + server_input)
     #os.system(client_program + " " + client_input)
@@ -109,7 +124,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(name)-s %(levelname)-s %(message)s',
                         datefmt='%m-%d %H:%M',
-                        #filename='/tmp/myapp.log',
+                        filename='/tmp/myapp.log',
                         filemode='w')
     # define a Handler which writes INFO messages or higher to the sys.stderr
     console = logging.StreamHandler()

@@ -35,12 +35,15 @@ typedef struct output_handler_t
 	long called_cnt;
 }output_handler_t;
 
-//[TODO] output_peer will be redesign
+// [TODO] This data structure should be reviewed by Cheng
+
 typedef struct output_peer_t
 {
+	// I need know who is leader,though it seems waste of storage if every cell will store a leader_id
+	uint32_t leader_id;
 	uint32_t node_id;
 	uint64_t hash;
-	long idx;
+	long hash_index;
 }output_peer_t;
 
 
@@ -71,7 +74,9 @@ int store_output(int fd, const unsigned char *buf, ssize_t ret);
 // if -1 is returned, means do not do output conconsistency.
 long determine_output(int fd);
 
-int do_decision(output_peer_t* output_peers, int group_size);
+// make decision about who need to be restored based on the hash value.
+// peer_array stores hash value and node_id
+int do_decision(output_peer_t* peer_array, int group_size);
 
 
 // private used

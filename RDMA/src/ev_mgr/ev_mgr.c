@@ -106,6 +106,22 @@ mgr_on_close_exit:
     return;
 }
 
+// [TODO] This function should be reviewed by cheng.
+// This function will malloc space for output_peer array.
+// please remember free it after use.
+output_peer_t* prepare_peer_array(dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
+    // This is a mock function.
+    // [TODO] I need cheng's help to implement this function.
+    debug_log("[Warning] prepare_peer_array is a mock function.");
+    output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
+    for (int i=0;i<group_size;i++){
+        // init a mock output_peer_t
+        peer_array[i].leader_id = leader_id;
+        peer_array[i].node_id = i; 
+        peer_array[i].hash = 0x55aa;
+        peer_array[i].hash_index = hash_index;
+    }
+}
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
     if (pthread_self() == check_point_thread)
@@ -118,16 +134,22 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
         if (leader_id == ev_mgr->node_id)
         {
             long hash_index = determine_output(fd); 
-            // -1 means nop
-            if (hash_index == -1)
-            {
-                /* nothing to do */
-            } else{
+            if (-1 != hash_index){
+                // to do output proposal with hash value at this hash_index
+                // [TODO] I need learn the function of this socket_pair
                 leader_socket_pair* socket_pair = NULL;
                 HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
-                const dare_log_entry_t *p = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
-                // how to get hash value form log_entry from p;
-                //do_decision(p);// best effort
+                // [TODO] I remove this const to make it easy to pass compile, I will add it back.
+                dare_log_entry_t *log_entry_ptr = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
+                // [TODO] I need learn how to get group size from Cheng.
+                int group_size = 3;
+                // [TODO] how to get all hash values of all nodes in the cluster from log_entry pointer p
+                // [TODO] This method should be reviewd by cheng.
+                // An array will be malloced and filled with hash value and node id
+                output_peer_t* peer_array = prepare_peer_array(log_entry_ptr, leader_id, hash_index, group_size);
+                // make decision about who need to be restored based on the hash value.
+                do_decision(peer_array, group_size);
+                free(peer_array);
             }
         }
     }
@@ -205,7 +227,6 @@ do_action_close_exit:
 }
 
 static void do_action_connect(view_stamp clt_id,void* arg){
-    
     event_manager* ev_mgr = arg;
     replica_socket_pair* ret;
 

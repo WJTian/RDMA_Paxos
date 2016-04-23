@@ -2,7 +2,10 @@
 #include "../include/config-comp/config-mgr.h"
 #include "../include/replica-sys/node.h"
 #include "../include/rdma/dare.h"
+#include "../include/rdma/dare_ibv_rc.h"
 #include "../include/ev_mgr/check_point_thread.h"
+
+#include "../include/output/output.h"
 
 #include <fcntl.h>
 #include <netinet/tcp.h>
@@ -85,6 +88,7 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
     if (pthread_self() == check_point_thread)
         return;
     
+    del_output(fd);
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
@@ -104,6 +108,23 @@ mgr_on_close_exit:
     return;
 }
 
+// [finished] This function should be reviewed by cheng.
+// This function will malloc space for output_peer array.
+// please remember free it after use.
+output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
+    // [finished] I need cheng's help to implement this function.
+    output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
+    for (int i=0;i<group_size;i++){
+        peer_array[i].leader_id = leader_id;
+        peer_array[i].node_id = i; 
+        peer_array[i].hash = log_entry_ptr->ack[i].hash;
+        peer_array[i].hash_index = hash_index;
+    }
+    // Add information of the leader.
+    peer_array[leader_id].hash = get_output_hash(fd, hash_index);
+    return peer_array;
+}
+// I do not agree with size_t ret, please change this name.
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
     if (pthread_self() == check_point_thread)
@@ -111,22 +132,34 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
-        store_output(fd, buf, ret);
+        int store_output_rc = 0;
+        store_output_rc = store_output(fd, buf, ret);
+        // if store_output return 0 or -1, do not do next things.
+        if (store_output_rc<=0){
+            return; // return directly
+        }
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+        // leader logic
         if (leader_id == ev_mgr->node_id)
         {
-            long hash_index = determine_output(fd); // decide whether the leader needs to do rsm_op to do output conconsistency
-            // return the index of hashvalue in a certain connection(fd).
-            // -1 means nop
-            if (hash_index == -1)
-            {
-                /* nothing to do */
-            } else{
+            long hash_index = determine_output(fd); 
+            if (-1 != hash_index){
+                // to do output proposal with hash value at this hash_index
+                // [finished] I need learn the function of this socket_pair
                 leader_socket_pair* socket_pair = NULL;
                 HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
-                const dare_log_entry_t *p = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
-                // how to get hash value form log_entry from p;
-                //do_decision(p);// best effort
+                // [TODO] I remove this const to make it easy to pass compile, I will add it back.
+                dare_log_entry_t *log_entry_ptr = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
+                // [TODO] I need learn how to get group size from Cheng.
+                int group_size = 3;
+                // [TODO] how to get all hash values of all nodes in the cluster from log_entry pointer p
+                // [TODO] This method should be reviewd by cheng.
+                // An array will be malloced and filled with hash value and node id
+                output_peer_t* peer_array = prepare_peer_array(fd, log_entry_ptr, leader_id, hash_index, group_size);
+                // make decision about who need to be restored based on the hash value.
+                // Cheng will pass a leader_id to indicate who is the leader.
+                do_decision(peer_array, group_size);
+                free(peer_array);
             }
         }
     }
@@ -195,7 +228,6 @@ static void do_action_close(view_stamp clt_id,void* arg){
             if (node == NULL)
                 fprintf(stderr, "failed to find the matching key\n");
             listDelNode(ev_mgr->excluded_fd, node);
-
             HASH_DEL(ev_mgr->replica_hash_map, ret);
         }
     }
@@ -204,7 +236,6 @@ do_action_close_exit:
 }
 
 static void do_action_connect(view_stamp clt_id,void* arg){
-    
     event_manager* ev_mgr = arg;
     replica_socket_pair* ret;
 

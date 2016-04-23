@@ -61,14 +61,17 @@ def processBench(config, bench):
         'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
     elif server_count == 1 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' )
-    testscript.write('sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+'/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg \n')
+
+    testscript.write('sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+'/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  \n' +
+    'ssh ' + remote_hostone + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+'/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg " \n' +
+     'ssh ' + remote_hosttwo + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+'/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg " \n')
 
     if server_count == 3:
         testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +' & \n'+ 'sleep 2 \n' +
         'ssh ' + remote_hostone + '  "' + hook_program.replace("myid",node_id_two) + server_program + ' ' + server_input + '" &\n' + 'sleep 2 \n' +
         'ssh ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '" &\n'+ 'sleep 5 \n' )
     elif server_count == 1:
-        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' \n' + 'sleep 5 \n')
+        testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' &\n' + 'sleep 5 \n')
     testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
     if server_count == 3 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' +
@@ -80,7 +83,7 @@ def processBench(config, bench):
     testscript.close()
     os.system('chmod +x '+testname)
     for repeat in range(0,repeats):
-        os.system('./' + testname + " " +  str(repeat))
+        os.system('./' + testname + " " + str(repeat))
     #os.system('rm -rf ' + testname)
     #os.system(server_program + " " + server_input)
     #os.system(client_program + " " + client_input)

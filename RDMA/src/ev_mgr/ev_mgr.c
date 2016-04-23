@@ -113,7 +113,6 @@ mgr_on_close_exit:
 // please remember free it after use.
 output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
     // [finished] I need cheng's help to implement this function.
-    debug_log("[Warning] prepare_peer_array is a mock function.");
     output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
     for (int i=0;i<group_size;i++){
         peer_array[i].leader_id = leader_id;

@@ -2,6 +2,7 @@
 #include "../include/config-comp/config-mgr.h"
 #include "../include/replica-sys/node.h"
 #include "../include/rdma/dare.h"
+#include "../include/rdma/dare_ibv_rc.h"
 #include "../include/ev_mgr/check_point_thread.h"
 
 #include "../include/output/output.h"
@@ -131,7 +132,8 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
-        int ret = store_output(fd, buf, ret);
+        int ret = 0;
+        ret = store_output(fd, buf, ret);
         // if store_output return 0 or -1, do not do next things.
         if (ret<=0){
             return; // return directly

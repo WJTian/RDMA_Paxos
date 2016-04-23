@@ -196,7 +196,7 @@ long determine_output(int fd){
 		// A output conconsistency will be triggred.
 		// However, if one machine is slow, it may not calculate hash value at this round.
 		// We decide to propose hash value in the old round.
-		int round_goback = output_handler->count - CHECK_GOBACK;
+		long round_goback = output_handler->count - CHECK_GOBACK;
 		if (round_goback>=0){
 			retval = round_goback;
 		}else{

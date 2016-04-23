@@ -219,7 +219,7 @@ uint64_t get_val_by_index(list *list_head, long index){
     	uint64_t val = *(uint64_t *)listNodeValue(ln);
     	if (index == cnt){ // Found it
     		retval = val;
-    		debug_log("[get_val_by_index] found val:0x%"PRIx64" at index:%d\n",retval,index);
+    		debug_log("[get_val_by_index] found val:0x%"PRIx64" at index:%ld\n",retval,index);
     		return retval;
     	}
     	cnt++;

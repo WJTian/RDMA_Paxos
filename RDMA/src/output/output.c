@@ -1,11 +1,12 @@
+/*
+* Author: Jingyu Yang
+* Date: April 23, 2016
+* Description: Output management
+*/
 #include "../include/output/output.h"
 #include "../include/output/crc64.h"
 #include "../include/output/adlist.h"
 #include "../include/util/debug.h"
-
-
-
-
 void init_output_mgr(){
 	output_manager_t *output_mgr = get_output_mgr();
 	debug_log("[init_output_mgr] output_mgr is inited at %p\n",output_mgr);
@@ -161,6 +162,8 @@ long determine_output(int fd){
 	output_handler->called_cnt++;
 	if (output_handler->called_cnt%CHECK_PERIOD == 0){ 
 		// A output conconsistency will be triggred.
+		// However, if one machine is slow, it may not calculate hash value at this round.
+		// We decide to propose hash value in the old round.
 		int round_goback = output_handler->count - CHECK_GOBACK;
 		if (round_goback>=0){
 			retval = round_goback;
@@ -173,25 +176,9 @@ long determine_output(int fd){
 	return retval;
 }
 
-void get_output(int fd, long hash_index)
-{
-	//socket_pair* ret = NULL;
-	//HASH_FIND_INT(ev_mgr->hash_map, &fd, ret);
-
-
-	//HASH_FIND_INT(output_handler->hash_table, &ret->s_p, ) find the corresponding hash table
-	//listNode * node = listIndex(list *list, index);
-	//return listNodeValue(node);
+void get_output(int fd, long hash_index){
 }
 
 
-void del_output(int fd)
-{
-	//socket_pair* ret = NULL;
-	//HASH_FIND_INT(ev_mgr->hash_map, &fd, ret);
-
-
-	//HASH_FIND_INT(output_handler->hash_table, &ret->s_p, ) find the corresponding hash table
-	//listNode * node = listIndex(list *list, index);
-	//return listNodeValue(node);
+void del_output(int fd){
 }

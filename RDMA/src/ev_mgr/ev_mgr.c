@@ -110,7 +110,7 @@ mgr_on_close_exit:
 // [finished] This function should be reviewed by cheng.
 // This function will malloc space for output_peer array.
 // please remember free it after use.
-output_peer_t* prepare_peer_array(dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
+output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
     // [finished] I need cheng's help to implement this function.
     debug_log("[Warning] prepare_peer_array is a mock function.");
     output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
@@ -120,6 +120,9 @@ output_peer_t* prepare_peer_array(dare_log_entry_t *log_entry_ptr, uint32_t lead
         peer_array[i].hash = log_entry_ptr->ack[i].hash;
         peer_array[i].hash_index = hash_index;
     }
+    // Add information of the leader.
+    peer_array[leader_id].hash = get_output_hash(fd, hash_index);
+    return peer_array;
 }
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
@@ -128,8 +131,13 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
-        store_output(fd, buf, ret);
+        int ret = store_output(fd, buf, ret);
+        // if store_output return 0 or -1, do not do next things.
+        if (ret<=0){
+            return; // return directly
+        }
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+        // leader logic
         if (leader_id == ev_mgr->node_id)
         {
             long hash_index = determine_output(fd); 
@@ -145,7 +153,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
                 // [TODO] how to get all hash values of all nodes in the cluster from log_entry pointer p
                 // [TODO] This method should be reviewd by cheng.
                 // An array will be malloced and filled with hash value and node id
-                output_peer_t* peer_array = prepare_peer_array(log_entry_ptr, leader_id, hash_index, group_size);
+                output_peer_t* peer_array = prepare_peer_array(fd, log_entry_ptr, leader_id, hash_index, group_size);
                 // make decision about who need to be restored based on the hash value.
                 // Cheng will pass a leader_id to indicate who is the leader.
                 do_decision(peer_array, group_size);

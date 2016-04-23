@@ -87,6 +87,7 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
     if (pthread_self() == check_point_thread)
         return;
     
+    del_output(fd);
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
@@ -106,19 +107,17 @@ mgr_on_close_exit:
     return;
 }
 
-// [TODO] This function should be reviewed by cheng.
+// [finished] This function should be reviewed by cheng.
 // This function will malloc space for output_peer array.
 // please remember free it after use.
 output_peer_t* prepare_peer_array(dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
-    // This is a mock function.
-    // [TODO] I need cheng's help to implement this function.
+    // [finished] I need cheng's help to implement this function.
     debug_log("[Warning] prepare_peer_array is a mock function.");
     output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
     for (int i=0;i<group_size;i++){
-        // init a mock output_peer_t
         peer_array[i].leader_id = leader_id;
         peer_array[i].node_id = i; 
-        peer_array[i].hash = 0x55aa;
+        peer_array[i].hash = log_entry_ptr->ack[i].hash;
         peer_array[i].hash_index = hash_index;
     }
 }
@@ -219,7 +218,6 @@ static void do_action_close(view_stamp clt_id,void* arg){
             if (node == NULL)
                 fprintf(stderr, "failed to find the matching key\n");
             listDelNode(ev_mgr->excluded_fd, node);
-
             HASH_DEL(ev_mgr->replica_hash_map, ret);
         }
     }

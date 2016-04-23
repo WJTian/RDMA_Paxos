@@ -85,6 +85,7 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FI
         pthread_mutex_init(&comp->lock, NULL);
 #endif
 
+        init_output_mgr();
         goto consensus_init_exit;
 
     }
@@ -305,7 +306,7 @@ void *handle_accept_req(void* arg)
                     if (entry->type == P_OUTPUT)
                     {
                         // [TODO] I need learn whether is function is implemented.
-                        // 
+                        // up = get_mapping_fd() is defined in ev_mgr.c
                         int fd = comp->ug(entry->clt_id, comp->up_para);
                         uint64_t hash = get_output_hash(fd, (long)entry->data);
                         reply->hash = hash;    

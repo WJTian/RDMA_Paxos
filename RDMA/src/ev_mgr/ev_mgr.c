@@ -125,6 +125,7 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
     peer_array[leader_id].hash = get_output_hash(fd, hash_index);
     return peer_array;
 }
+// I do not agree with size_t ret, please change this name.
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
     if (pthread_self() == check_point_thread)
@@ -132,10 +133,10 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     
     if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
     {
-        int ret = 0;
-        ret = store_output(fd, buf, ret);
+        int store_output_rc = 0;
+        store_output_rc = store_output(fd, buf, ret);
         // if store_output return 0 or -1, do not do next things.
-        if (ret<=0){
+        if (store_output_rc<=0){
             return; // return directly
         }
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);

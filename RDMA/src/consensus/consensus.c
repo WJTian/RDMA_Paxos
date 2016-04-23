@@ -309,7 +309,8 @@ void *handle_accept_req(void* arg)
                         // up = get_mapping_fd() is defined in ev_mgr.c
                         int fd = comp->ug(entry->clt_id, comp->up_para);
                         debug_log("[handle_accept_req] fd:%d, data:%ld , val:%ld\n",fd,(long)entry->data,*(long*)entry->data);
-                        uint64_t hash = get_output_hash(fd, (long)entry->data);
+                        // consider entry->data as a pointer.
+                        uint64_t hash = get_output_hash(fd, *(long*)entry->data);
                         reply->hash = hash;    
                     }
 

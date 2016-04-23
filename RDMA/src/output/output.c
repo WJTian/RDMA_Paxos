@@ -198,7 +198,7 @@ uint64_t get_val_by_index(list *list_head, int index){
 // If it is impossible to get hash value, 0 will be returned as default value.
 uint64_t get_output_hash(int fd, long hash_index){
 	debug_log("[get_output_hash] fd: %d hash_index:%ld\n",fd,hash_index);
-	uint64_t uint64_t = 0;
+	uint64_t retval = 0;
 	// A output_handler will be got from different fd
 	output_handler_t* output_handler = get_output_handler_by_fd(fd);
 	if (NULL == output_handler){// error
@@ -214,5 +214,6 @@ uint64_t get_output_hash(int fd, long hash_index){
 	}
 	return retval;
 }
+
 void del_output(int fd){
 }

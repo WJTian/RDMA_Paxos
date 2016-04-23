@@ -224,7 +224,7 @@ uint64_t get_val_by_index(list *list_head, long index){
     	}
     	cnt++;
     }
-    debug_log("[get_val_by_index] Not Found at index:%d, 0 will be returned\n",index);
+    debug_log("[get_val_by_index] Not Found at index:%ld, 0 will be returned\n",index);
     return retval;
 }
 // If it is impossible to get hash value, 0 will be returned as default value.

@@ -182,7 +182,7 @@ uint64_t get_val_by_index(list *list_head, int index){
     listIter li;
     int cnt=0;
     uint64_t retval = 0;
-    listRewind(list_head,li);
+    listRewind(list_head,&li);
     while((ln = listNext(&li))) {
     	uint64_t val = *(uint64_t *)listNodeValue(ln);
     	if (index == cnt){ // Found it

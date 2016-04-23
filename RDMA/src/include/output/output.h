@@ -78,6 +78,9 @@ long determine_output(int fd);
 // peer_array stores hash value and node_id
 int do_decision(output_peer_t* peer_array, int group_size);
 
+// return hashvalue at posistion hash_index
+// If it is impossible to get hash value, 0 will be returned as default value.
+uint64_t get_output_hash(int fd, long hash_index);
 
 // private used
 // declear

@@ -176,9 +176,43 @@ long determine_output(int fd){
 	return retval;
 }
 
-void get_output(int fd, long hash_index){
+// if not found, it will return 0
+uint64_t get_val_by_index(list *list_head, int index){
+	listNode *ln;
+    listIter li;
+    int cnt=0;
+    uint64_t retval = 0;
+    listRewind(list_head,li);
+    while((ln = listNext(&li))) {
+    	uint64_t val = *(uint64_t *)listNodeValue(ln);
+    	if (index == cnt){ // Found it
+    		retval = val;
+    		debug_log("[get_val_by_index] found val:0x%"PRIx64" at index:%d\n",retval,index);
+    		return retval;
+    	}
+    	cnt++;
+    }
+    debug_log("[get_val_by_index] Not Found at index:%d, 0 will be returned\n",index);
+    return retval;
 }
-
-
+// If it is impossible to get hash value, 0 will be returned as default value.
+uint64_t get_output_hash(int fd, long hash_index){
+	debug_log("[get_output_hash] fd: %d hash_index:%ld\n",fd,hash_index);
+	uint64_t uint64_t = 0;
+	// A output_handler will be got from different fd
+	output_handler_t* output_handler = get_output_handler_by_fd(fd);
+	if (NULL == output_handler){// error
+		debug_log("[get_output_hash] fd:%d, get_output_handler_by_fd error. \n",fd);
+		return retval;
+	}
+	if (hash_index < output_handler->count){
+		list * list_head = output_handler->output_list;
+		retval = get_val_by_index(list_head,hash_index);
+	}else{
+		debug_log("[get_output_hash] hash_index: %ld is invalid, count: %ld\n", hash_index, output_handler->count);
+		retval = 0;
+	}
+	return retval;
+}
 void del_output(int fd){
 }

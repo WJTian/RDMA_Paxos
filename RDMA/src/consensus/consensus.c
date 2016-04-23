@@ -305,6 +305,7 @@ void *handle_accept_req(void* arg)
                     if (entry->type == P_OUTPUT)
                     {
                         // [TODO] I need learn whether is function is implemented.
+                        // 
                         int fd = comp->ug(entry->clt_id, comp->up_para);
                         uint64_t hash = get_output_hash(fd, (long)entry->data);
                         reply->hash = hash;    

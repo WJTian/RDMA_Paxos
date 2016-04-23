@@ -62,12 +62,23 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	uint64_t master_hash = get_master_hash(output_peers,group_size);
 	int major_cnt =0; // number of majority.
 	int ret=0;
+	// It provides a best effor decision.
+	// If one of hash is 0, just return.
+	int zero_count = 0;
 	for (i = 0; i < group_size; i++){
 		debug_log("[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIu64" hash_index:%ld\n",
 			output_peers[i].leader_id,
 			output_peers[i].node_id,
 			output_peers[i].hash,
 			output_peers[i].hash_index);
+		if (0L == output_peers[i].hash){
+			zero_count++;
+		}
+	}
+	if (zero_count){
+		debug_log("[do_decision] failed to make decision since one of hash is 0\n");
+		// 0 means do nothing.
+		return 0;
 	}
 	threshold = group_size/2 +1;
 	/*

@@ -136,7 +136,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
             long hash_index = determine_output(fd); 
             if (-1 != hash_index){
                 // to do output proposal with hash value at this hash_index
-                // [TODO] I need learn the function of this socket_pair
+                // [finished] I need learn the function of this socket_pair
                 leader_socket_pair* socket_pair = NULL;
                 HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
                 // [TODO] I remove this const to make it easy to pass compile, I will add it back.
@@ -148,6 +148,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
                 // An array will be malloced and filled with hash value and node id
                 output_peer_t* peer_array = prepare_peer_array(log_entry_ptr, leader_id, hash_index, group_size);
                 // make decision about who need to be restored based on the hash value.
+                // Cheng will pass a leader_id to indicate who is the leader.
                 do_decision(peer_array, group_size);
                 free(peer_array);
             }

@@ -36,11 +36,10 @@ typedef struct output_handler_t
 }output_handler_t;
 
 // [TODO] This data structure should be reviewed by Cheng
-
 typedef struct output_peer_t
 {
 	// I need know who is leader,though it seems waste of storage if every cell will store a leader_id
-	uint32_t leader_id;
+	uint32_t leader_id; // will be removed
 	uint32_t node_id;
 	uint64_t hash;
 	long hash_index;

@@ -53,7 +53,7 @@ output_manager_t * get_output_mgr(){
 	static output_manager_t * inner_output_mgr=NULL; // This is a singleton of output_mgr
 	if (NULL == inner_output_mgr){
 		//init output manager
-		inner_output_mgr = (output_manager_t *)malloc(sizeof(output_manager_t *)); // it will be freed in deinit_output_mgr
+		inner_output_mgr = (output_manager_t *)malloc(sizeof(output_manager_t)); // it will be freed in deinit_output_mgr
 		init_fd_handler(inner_output_mgr);
 	}
 	return inner_output_mgr;

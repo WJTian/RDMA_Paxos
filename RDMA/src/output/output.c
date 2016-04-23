@@ -130,6 +130,7 @@ output_handler_t* get_output_handler_by_fd(int fd){
 	output_handler_t* ptr = output_mgr->fd_handler[fd];
 	if (NULL == ptr){ // At the first time, output_handler_t need to be inited.		
 		output_mgr->fd_handler[fd] = new_output_handler(fd);
+		debug_log("[get_output_handler_by_fd] fd: %d got a handler:%p\n",fd,output_mgr->fd_handler[fd]);
 	}
 	return output_mgr->fd_handler[fd];
 }
@@ -168,15 +169,18 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 			// curr is clear, since new hash is generated.
 			output_handler->hash_buffer_curr=0;
 			debug_log("[store_output] fd:%d, hash is generated, hash:0x%"PRIx64"\n",fd, output_handler->hash);
-
-			// add hash into output_list;
-			uint64_t *new_hash = (uint64_t*)malloc(sizeof(uint64_t));
-			*new_hash = output_handler->hash;
-			listAddNodeTail(output_handler->output_list, (void*)new_hash);
-			debug_log("[store_output] fd:%d, hash is putted into output_list. count:%ld, hash:0x%"PRIx64"\n", 
+			if (output_handler->output_list){
+				// add hash into output_list;
+				uint64_t *new_hash = (uint64_t*)malloc(sizeof(uint64_t));
+				*new_hash = output_handler->hash;
+				listAddNodeTail(output_handler->output_list, (void*)new_hash);
+				debug_log("[store_output] fd:%d, hash is putted into output_list. count:%ld, hash:0x%"PRIx64"\n", 
 				fd, output_handler->count, output_handler->hash);
-			output_handler->count++;
-			retval++; // one hash value is generated.
+				output_handler->count++;
+				retval++;// one hash value is generated.
+			}else{
+				debug_log("[store_output] [error] output_list is NULL, fd:%d, output_handler ptr:%p\n",fd,output_handler);
+			}
 		}
 	}
 	return retval;

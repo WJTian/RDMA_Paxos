@@ -66,7 +66,7 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	// If one of hash is 0, just return.
 	int zero_count = 0;
 	for (i = 0; i < group_size; i++){
-		debug_log("[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIu64" hash_index:%ld\n",
+		debug_log("[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld\n",
 			output_peers[i].leader_id,
 			output_peers[i].node_id,
 			output_peers[i].hash,

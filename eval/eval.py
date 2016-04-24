@@ -55,6 +55,8 @@ def processBench(config, bench):
     logging.info("port: " + port)
     testscript = open(testname,"w")
     testscript.write('#! /bin/bash\n')
+<<<<<<< HEAD
+=======
     if server_count == 3 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
@@ -73,12 +75,31 @@ def processBench(config, bench):
     elif server_count == 1:
         testscript.write(hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + ' &\n' + 'sleep 5 \n')
     testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+>>>>>>> fb4fc94dd35124fab706390f7a6018a93381c1b4
     if server_count == 3 & len(server_kill)!=0:
         testscript.write(server_kill + '\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
     elif server_count == 1 & len(server_kill)!=0:
         testscript.write(server_kill + '\n')
+
+    testscript.write('ssh ' + local_host + '  "' +'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
+    'ssh ' + remote_hostone + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
+     'ssh ' + remote_hosttwo + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
+
+    if server_count == 3:
+        testscript.write('ssh ' + local_host + '  "' + hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +'"&  \n'+ 'sleep 2 \n' +
+        'ssh ' + remote_hostone + '  "' + hook_program.replace("myid",node_id_two) + server_program + ' ' + server_input + '"& \n' + 'sleep 2 \n' +
+        'ssh ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '"& \n'+ 'sleep 5 \n' )
+    elif server_count == 1:
+        testscript.write('ssh ' + local_host + '  "' + hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + '" \n' + 'sleep 5 \n')
+    testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+    if server_count == 3 & len(server_kill)!=0:
+        testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
+        'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
+        'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
+    elif server_count == 1 & len(server_kill)!=0:
+        testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
 
     testscript.close()
     os.system('chmod +x '+testname)

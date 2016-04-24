@@ -138,7 +138,28 @@ extern "C" int accept4(int socket, struct sockaddr *address, socklen_t *address_
         static orig_accept4_type orig_accept4;
         if (!orig_accept4)
                 orig_accept4 = (orig_accept4_type) dlsym(RTLD_NEXT, "accept4");
-	int ret = orig_accept4(socket, address, address_len, flags);
+	int ret;
+	if (ev_mgr == NULL)
+	{
+		ret = orig_accept4(socket, address, address_len, flags);
+	} else {
+		int *s_p = replica_on_accept(ev_mgr);
+		ret = orig_accept4(socket, address, address_len, flags);
+		
+		if (ret >= 0)
+		{
+			struct stat sb;
+			fstat(ret, &sb);
+			if ((sb.st_mode & S_IFMT) == S_IFSOCK)
+			{
+				if (s_p != NULL)
+					*s_p = ret;
+				else
+					leader_on_accept(ret, ev_mgr);
+			}
+		}
+	}
+
 	return ret;
 }
 

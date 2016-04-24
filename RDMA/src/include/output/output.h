@@ -12,7 +12,7 @@ Description: Output hash value implementation.
 
 #define CHECK_PERIOD 10
 #define CHECK_GOBACK 5
-#define HASH_BUFFER_SIZE 16
+#define HASH_BUFFER_SIZE 1024
 // since max tcp port number will not exceed this number
 #define MAX_FD_SIZE 65536 
 

@@ -1,0 +1,6 @@
+libmediatomb_a-mysql_storage.o: ../src/storage/mysql/mysql_storage.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

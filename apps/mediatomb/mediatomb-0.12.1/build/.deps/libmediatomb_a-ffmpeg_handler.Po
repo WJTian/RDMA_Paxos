@@ -1,0 +1,6 @@
+libmediatomb_a-ffmpeg_handler.o: ../src/metadata/ffmpeg_handler.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

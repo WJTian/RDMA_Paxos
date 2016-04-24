@@ -1,0 +1,6 @@
+libmediatomb_a-extractor_handler.o: ../src/metadata/extractor_handler.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

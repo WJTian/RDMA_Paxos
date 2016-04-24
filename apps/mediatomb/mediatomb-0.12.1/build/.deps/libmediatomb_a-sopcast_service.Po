@@ -1,0 +1,6 @@
+libmediatomb_a-sopcast_service.o: ../src/sopcast_service.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

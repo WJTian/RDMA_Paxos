@@ -1,0 +1,6 @@
+libmediatomb_a-js_functions.o: ../src/scripting/js_functions.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

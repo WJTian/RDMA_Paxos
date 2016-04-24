@@ -1,0 +1,6 @@
+libmediatomb_a-exiv2_handler.o: ../src/metadata/exiv2_handler.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

@@ -1,0 +1,6 @@
+libmediatomb_a-youtube_video_url.o: ../src/youtube_video_url.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

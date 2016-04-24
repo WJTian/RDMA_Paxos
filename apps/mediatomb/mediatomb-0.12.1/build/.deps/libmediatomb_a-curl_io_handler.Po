@@ -1,0 +1,6 @@
+libmediatomb_a-curl_io_handler.o: ../src/curl_io_handler.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

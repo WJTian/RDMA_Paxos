@@ -1,0 +1,6 @@
+libmediatomb_a-dvdnav_read.o: ../src/dvdnav_read.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

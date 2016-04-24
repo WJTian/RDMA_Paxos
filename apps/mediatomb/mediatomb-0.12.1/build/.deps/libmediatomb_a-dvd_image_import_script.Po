@@ -1,0 +1,7 @@
+libmediatomb_a-dvd_image_import_script.o: \
+ ../src/scripting/dvd_image_import_script.cc /usr/include/stdc-predef.h \
+ ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

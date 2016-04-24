@@ -1,0 +1,6 @@
+libmediatomb_a-upnp_mrreg_actions.o: ../src/upnp_mrreg_actions.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

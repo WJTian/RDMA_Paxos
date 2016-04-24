@@ -1,0 +1,6 @@
+mpeg_remux.o: ../src/mpegdemux/mpeg_remux.c /usr/include/stdc-predef.h \
+ ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

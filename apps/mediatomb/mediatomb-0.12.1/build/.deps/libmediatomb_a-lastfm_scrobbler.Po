@@ -1,0 +1,6 @@
+libmediatomb_a-lastfm_scrobbler.o: ../src/lastfm_scrobbler.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

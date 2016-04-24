@@ -1,0 +1,6 @@
+libmediatomb_a-js_layout.o: ../src/layout/js_layout.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

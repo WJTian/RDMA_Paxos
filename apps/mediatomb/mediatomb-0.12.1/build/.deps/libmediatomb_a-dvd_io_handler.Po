@@ -1,0 +1,6 @@
+libmediatomb_a-dvd_io_handler.o: ../src/dvd_io_handler.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

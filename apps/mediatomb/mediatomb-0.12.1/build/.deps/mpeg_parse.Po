@@ -1,0 +1,6 @@
+mpeg_parse.o: ../src/mpegdemux/mpeg_parse.c /usr/include/stdc-predef.h \
+ ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

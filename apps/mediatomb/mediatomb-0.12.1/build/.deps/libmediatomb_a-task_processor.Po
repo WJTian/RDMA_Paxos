@@ -1,0 +1,6 @@
+libmediatomb_a-task_processor.o: ../src/task_processor.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

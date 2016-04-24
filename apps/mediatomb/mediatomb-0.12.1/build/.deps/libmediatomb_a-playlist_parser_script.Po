@@ -1,0 +1,7 @@
+libmediatomb_a-playlist_parser_script.o: \
+ ../src/scripting/playlist_parser_script.cc /usr/include/stdc-predef.h \
+ ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

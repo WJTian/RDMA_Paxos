@@ -1,0 +1,6 @@
+libmediatomb_a-id3_handler.o: ../src/metadata/id3_handler.cc \
+ /usr/include/stdc-predef.h ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

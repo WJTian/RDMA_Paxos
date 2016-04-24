@@ -1,0 +1,6 @@
+buffer.o: ../src/mpegdemux/buffer.c /usr/include/stdc-predef.h \
+ ../autoconfig.h
+
+/usr/include/stdc-predef.h:
+
+../autoconfig.h:

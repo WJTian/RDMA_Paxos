@@ -1,0 +1,18 @@
+2016-04-24 20:00:30    INFO: Loading configuration from: /home/hkucs/RDMA_Paxos/apps/mediatomb/.mediatomb/config.xml
+2016-04-24 20:00:30    INFO: Checking configuration...
+2016-04-24 20:00:30    INFO: Setting filesystem import charset to UTF-8
+2016-04-24 20:00:30    INFO: Setting metadata import charset to UTF-8
+2016-04-24 20:00:30    INFO: Setting playlist charset to UTF-8
+2016-04-24 20:00:30    INFO: Configuration check succeeded.
+2016-04-24 20:00:30   ERROR: main: upnp error -208
+2016-04-24 20:00:30   ERROR: Socket error.
+2016-04-24 20:00:30    INFO: Please check if your network interface was configured for multicast!
+2016-04-24 20:00:30    INFO: Refer to the README file for more information.
+2016-04-24 20:00:30   ERROR: upnp_cleanup: UpnpUnRegisterRootDevice failed
+
+MediaTomb UPnP Server version 0.12.1 - http://mediatomb.cc/
+
+===============================================================================
+Copyright 2005-2010 Gena Batsyan, Sergey Bostandzhyan, Leonhard Wimmer.
+MediaTomb is free software, covered by the GNU General Public License version 2
+

@@ -1,6 +1,0 @@
-libmediatomb_a-import_script.o: ../src/scripting/import_script.cc \
- /usr/include/stdc-predef.h ../autoconfig.h
-
-/usr/include/stdc-predef.h:
-
-../autoconfig.h:

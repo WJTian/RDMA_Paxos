@@ -1,8 +1,0 @@
-libmediatomb_a-nil.o: ../src/zmm/nil.cc /usr/include/stdc-predef.h \
- ../autoconfig.h ../src/zmm/nil.h
-
-/usr/include/stdc-predef.h:
-
-../autoconfig.h:
-
-../src/zmm/nil.h:

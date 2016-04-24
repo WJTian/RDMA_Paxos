@@ -1,4 +1,0 @@
-libtombupnp_a-inet_pton.o: ../upnp/src/inet_pton.c \
- /usr/include/stdc-predef.h
-
-/usr/include/stdc-predef.h:

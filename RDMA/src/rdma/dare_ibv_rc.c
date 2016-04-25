@@ -152,6 +152,11 @@ static int rc_connect_server()
     int newsockfd = -1;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt_on = 1;
+    int opt_ret = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_on, sizeof(opt_on));
+    if (-1 ==opt_ret){
+        perror("Try SO_REUSEADDR failed, but program will continue to work.");
+    }
     if (bind(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->config.idx].peer_address, sizeof(struct sockaddr_in)) < 0)
     {
         perror ("ERROR on binding");

@@ -44,6 +44,14 @@ def processBench(config, bench):
     else:
         logger.error("No such hook option")   
 
+    if compare_option == "WITHOUT_OUTPUT_COMPARE":
+        check_output = "0"
+    elif compare_option == "WITH_OUTPUT_COMPARE":
+        check_output = "1"
+    else:
+        logger.error("No such compare option")
+
+
     repeats=config.getint(bench,'REPEATS')
     server_input=config.get(bench,'SERVER_INPUT')
     server_kill=config.get(bench,'SERVER_KILL')
@@ -65,6 +73,12 @@ def processBench(config, bench):
     testscript.write('ssh ' + local_host + '  "' +'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
     'ssh ' + remote_hostone + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
      'ssh ' + remote_hosttwo + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
+
+    testscript.write('ssh ' + local_host + '  "' +'sed -i \'/check_output/c     check_output = '+ check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
+    'ssh ' + remote_hostone + '  "' +'sed -i \'/check_output/c     check_output = '+ check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
+    'ssh ' + remote_hosttwo + '  "' +'sed -i \'/check_output/c     check_output = '+ check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
+
+
 
     if server_count == 3:
         testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +'"  \n'+ 'sleep 2 \n' +

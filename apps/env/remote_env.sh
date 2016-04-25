@@ -12,3 +12,9 @@ ssh $LOGNAME@$(cat $RDMA_ROOT/apps/env/remote_host2) "mkdir -p $RDMA_ROOT"
 scp -r $RDMA_ROOT $LOGNAME@$(cat $RDMA_ROOT/apps/env/remote_host2):$RDMA_ROOT/..
 ssh $LOGNAME@$(cat $RDMA_ROOT/apps/env/remote_host2) "cd $RDMA_ROOT/apps/env && ./local_env.sh"
 ssh $LOGNAME@$(cat $RDMA_ROOT/apps/env/remote_host2) 'source ~/.bashrc'
+
+ssh $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host) "mkdir -p $RDMA_ROOT"
+scp -r $RDMA_ROOT $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host):$RDMA_ROOT/..
+ssh $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host) "cd $RDMA_ROOT/apps/env && ./local_env.sh"
+ssh $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host) 'source ~/.bashrc'
+

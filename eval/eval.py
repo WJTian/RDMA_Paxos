@@ -64,6 +64,7 @@ def processBench(config, bench):
     testscript = open(testname,"w")
     testscript.write('#! /bin/bash\n')
     if server_count == 3 & len(server_kill)!=0:
+    	logger.debug("hahhahaha")
         testscript.write(server_kill + '\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')

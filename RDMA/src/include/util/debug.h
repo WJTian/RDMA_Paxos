@@ -3,12 +3,16 @@
 
 #include <stdio.h>
 
+#ifdef DEBUG_LOG
 #define debug_log(args...) do { \
     struct timeval tv; \
     gettimeofday(&tv,0); \
     fprintf(stderr,"%lu.%06lu:",tv.tv_sec,tv.tv_usec); \
     fprintf(stderr,args); \
 }while(0);
+#else
+#define debug_log(args...)
+#endif
 
 #define err_log(args...) do { \
     struct timeval tv; \

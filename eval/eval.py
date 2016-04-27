@@ -66,7 +66,7 @@ def processBench(config, bench):
     testscript = open(testname,"w")
     testscript.write('#! /bin/bash\n')
 
-    testscript.write('sh db_delete.sh')
+    testscript.write('bash db_delete.sh\n')
 
     if server_count == 3 & len(server_kill)!=0:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
@@ -92,43 +92,55 @@ def processBench(config, bench):
     elif server_count == 1:
         testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + '" \n' + 'sleep 5 \n')
 
+    testscript.write('skip_client=false\n')
     testscript.write('local_pid=$(ssh ' + local_host + ' pidof ' + server_program + ' | wc -l)\n')
     testscript.write('if [ "$local_pid" == "1" ]; then\n')
     testscript.write('echo ' + testname + ' in localhost is running\n')
+    testscript.write('echo -e "\\n"\n')
     testscript.write('else\n')
     testscript.write('echo ' + testname + ' in localhost is breaking down\n')
-    testscript.write('exit 1\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('skip_client=true\n')
     testscript.write('fi\n')
 
     testscript.write('remote1_pid=$(ssh ' + remote_hostone + ' pidof ' + server_program + ' | wc -l)\n')
     testscript.write('if [ "$remote1_pid" == "1" ]; then\n')
     testscript.write('echo ' + testname + ' in remote_hostone is running\n')
+    testscript.write('echo -e "\\n"\n')
     testscript.write('else\n')
     testscript.write('echo ' + testname + ' in remote_hostone is breaking down\n')
-    testscript.write('exit 1\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('skip_client=true\n')
     testscript.write('fi\n')
 
     testscript.write('remote2_pid=$(ssh ' + remote_hosttwo + ' pidof ' + server_program + ' | wc -l)\n')
     testscript.write('if [ "$remote2_pid" == "1" ]; then\n')
     testscript.write('echo ' + testname + ' in remote_hosttwo is running\n')
+    testscript.write('echo -e "\\n"\n')
     testscript.write('else\n')
     testscript.write('echo ' + testname + ' in remote_hosttwo is breaking down\n')
-    testscript.write('exit 1\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('skip_client=true\n')
     testscript.write('fi\n')
 
+    testscript.write('if [ "$skip_client" = "true" ]; then\n')
+    testscript.write('echo "Skip benchmark and kill all servers and restart again"\n')
+    testscript.write('else\n')
     if testname == "clamav" or testname == "mediatomb":
         testscript.write(client_program + ' ' + client_input +'  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
     else:
-        testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+        testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_result/' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+    testscript.write('fi\n')
     if server_count == 3 & len(server_kill)!=0:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
-        'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
+        'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n' + 'sleep 30')
     elif server_count == 1 & len(server_kill)!=0:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
 
     testscript.close()
     os.system('chmod +x '+testname)
+    os.system('mkdir ' + config_file.replace(".cfg","") + '_result')
     for repeat in range(0,repeats):
         os.system('./' + testname + " " + str(repeat))
     #os.system('rm -rf ' + testname)

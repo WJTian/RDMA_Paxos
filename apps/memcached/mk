@@ -35,5 +35,5 @@ make install
 cd ..
 rm -rf mcperf-$MCP_VER
 
-scp -rp ./mcperf $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host):$RDMA_ROOT/apps/redis
+scp -rp ./mcperf $LOGNAME@$(cat $RDMA_ROOT/apps/env/test_host):$RDMA_ROOT/apps/memcached
 

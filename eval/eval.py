@@ -62,6 +62,9 @@ def processBench(config, bench):
     testname,port_str = bench.split(" ")
     if testname == "mysql":
         hook_program = "sudo " + hook_program
+
+    if testname == "mongodb":
+        hook_program = hook_program.replace("nodes.local.cfg","nodes.mongodb.cfg")
     port = port_str.replace("port:","")
     logging.info("port: " + port)
     testscript = open(testname,"w")
@@ -123,6 +126,9 @@ def processBench(config, bench):
     testscript.write('echo -e "\\n"\n')
     testscript.write('skip_client=true\n')
     testscript.write('fi\n')
+
+    if testname=="clamav":
+        testscript.write('sleep 20\n')
 
     testscript.write('if [ "$skip_client" = "true" ]; then\n')
     testscript.write('echo "Skip benchmark and kill all servers and restart again"\n')

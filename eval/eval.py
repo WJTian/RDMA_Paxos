@@ -57,6 +57,7 @@ def processBench(config, bench):
     server_kill=config.get(bench,'SERVER_KILL')
     client_program=config.get(bench,'CLIENT_PROGRAM')
     client_input=config.get(bench,'CLIENT_INPUT')
+    client_input_list=client_input.split("|")
 
     testname,port_str = bench.split(" ")
     if testname == "mysql":
@@ -68,11 +69,11 @@ def processBench(config, bench):
 
     testscript.write('bash db_delete.sh\n')
 
-    if server_count == 3 & len(server_kill)!=0:
+    if server_count == 3:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
-    elif server_count == 1 & len(server_kill)!=0:
+    elif server_count == 1:
         testscript.write(server_kill + '\n' )
 
     testscript.write('ssh ' + local_host + '  "' +'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
@@ -127,15 +128,17 @@ def processBench(config, bench):
     testscript.write('echo "Skip benchmark and kill all servers and restart again"\n')
     testscript.write('else\n')
     if testname == "clamav" or testname == "mediatomb":
-        testscript.write(client_program + ' ' + client_input +'  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+        for client_input_part in client_input_list:
+            testscript.write(client_program + ' ' + client_input_part +'  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
     else:
-        testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_result/' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+        for client_input_part in client_input_list:
+            testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  > ' + config_file.replace(".cfg","") + '_result/' + config_file.replace(".cfg","") + '_output_$1' +  '\n' + 'sleep 10 \n')
     testscript.write('fi\n')
-    if server_count == 3 & len(server_kill)!=0:
+    if server_count == 3:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n' + 'sleep 30')
-    elif server_count == 1 & len(server_kill)!=0:
+    elif server_count == 1:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
 
     testscript.close()

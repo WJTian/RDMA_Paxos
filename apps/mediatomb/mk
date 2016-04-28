@@ -33,4 +33,9 @@ make -j `nproc`
 make install
 
 cd $RDMA_ROOT/apps/mediatomb/
+mv ./install/bin/mediatomb ./install/bin/mediatomb-server
+
 ./generate-database
+
+
+

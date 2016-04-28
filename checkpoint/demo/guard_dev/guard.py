@@ -268,6 +268,14 @@ def send_disconnect_cmd():
 		print "[send_disconnect_cmd] send %s failed at unix socket"%(DISCONNECT_CMD)
 		pass
 
+def pack_ext_res(zipAbsName,AIM_PID):
+	"""
+	Two steps:
+	1. pack all opened fd but regular files.
+	2. pack a directory define as EXT_RES_DIR, such as /data/ .
+	"""
+	print "zip file: %s, AIM_PID:%d"%(zipAbsName,AIM_PID)
+
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
 	# mkdir dump
@@ -293,6 +301,7 @@ def inner_checkpoint(node_id,round_id):
 			print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
 			shutil.rmtree(tmpDir)
 			# pack all external resource, such as files.
+			pack_ext_res(zipAbsName,AIM_PID);
 			# restore RDMA 
 			inner_restore(node_id,round_id)
 			# send reconnect cmd

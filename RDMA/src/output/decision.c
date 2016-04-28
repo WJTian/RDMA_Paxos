@@ -71,15 +71,16 @@ void* call_send_restore_cmd_start(void* argv){
 		}
 		//GUARD_SOCK
 		// check file existed.
-		if (0!=access(F_OK)){
+		if (0!=access(GUARD_SOCK,F_OK)){
 			debug_log("[call_send_restore_cmd_start] sock %s is not existed. Check guard.py.\n",GUARD_SOCK);
 			break;		
 		}
 		int fd,rc;
 		if ( (fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-	    	debug_log("[call_send_restore_cmd_start] unix socket create error.\n");
-	    	break;
+	    		debug_log("[call_send_restore_cmd_start] unix socket create error.\n");
+	    		break;
 		}
+		struct sockaddr_un addr;
 		memset(&addr, 0, sizeof(addr));
 		addr.sun_family = AF_UNIX;
 		strcpy(addr.sun_path, GUARD_SOCK);
@@ -88,7 +89,7 @@ void* call_send_restore_cmd_start(void* argv){
 			debug_log("[call_send_restore_cmd_start] unix socket create error.\n");
 			break;
 		}
-		sprintf(cmd,"restore %u %ld\n",(unsigned int)para->id,para->hash_index);
+		sprintf(cmd,"restore %u %ld\n",(unsigned int)para->node_id,para->hash_index);
 		rc = write(fd,cmd,strlen(cmd));
 		if (-1 == rc){ // write error
 			debug_log("[call_send_restore_cmd_start] write error: %d, cmd:%s\n",errno,cmd);
@@ -100,11 +101,11 @@ void* call_send_restore_cmd_start(void* argv){
 	return NULL;
 }
 // will send restore cmd to the guard.py
-int send_restore_cmd(uint32_t id,long hash_index){
+int send_restore_cmd(uint32_t node_id,long hash_index){
 	debug_log("[send_restore_cmd] id:%u, hash_index:%ld\n",id, hash_index);
 	// It is better to start a thread to send the cmd, so that this thread will not be blocked.
 	output_peer_t *para = (output_peer_t*)malloc(sizeof(output_peer_t));
-	para->id = id;
+	para->node_id = node_id;
 	para->hash_index = hash_index;
 	pthread_t thread_id;
 	int ret=pthread_create(&thread_id,NULL,&call_send_restore_cmd_start,(void*)para);

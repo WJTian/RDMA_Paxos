@@ -271,8 +271,8 @@ def send_disconnect_cmd():
 def pack_ext_res(zipAbsName,AIM_PID):
 	"""
 	Two steps:
-	1. pack all opened fd but regular files.
-	2. pack a directory define as EXT_RES_DIR, such as /data/ .
+	1.Generate a fd_index.txt, then pack all opened fd but regular files. into dir fd.
+	2. pack a directory define as EXT_RES_DIR, such as ext_res_dir .
 	"""
 	print "zip file: %s, AIM_PID:%d"%(zipAbsName,AIM_PID)
 

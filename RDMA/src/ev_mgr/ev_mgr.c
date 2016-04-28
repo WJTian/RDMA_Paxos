@@ -119,9 +119,12 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
         peer_array[i].node_id = i; 
         peer_array[i].hash = log_entry_ptr->ack[i].hash;
         peer_array[i].hash_index = hash_index;
+        peer_array[i].fd = -1;
     }
     // Add information of the leader.
     peer_array[leader_id].hash = get_output_hash(fd, hash_index);
+    // I can get leader's fd only.
+    peer_array[leader_id].fd = fd;
     return peer_array;
 }
 // I do not agree with size_t ret, please change this name.

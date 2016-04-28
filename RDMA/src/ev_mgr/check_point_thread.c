@@ -29,7 +29,7 @@ void accept_error_cb(struct evconnlistener *listener, void *ctx){
         event_base_loopexit(base, NULL);
 }
 
-void* call_disconnect_start(void *argc){
+void* call_disconnect_start(void *argv){
 	debug_log("[check point] disconnct_inner() is called at a new thread: %lu\n",(unsigned long)pthread_self());
 	int ret = disconnct_inner();
 	debug_log("[check point] disconnct_inner() is finished %lu\n",(unsigned long)pthread_self());
@@ -46,12 +46,12 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         char* pos = strstr(data,UNIX_CMD);
         int ret=0;
         if (pos){ // got a command
-                debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
-		pthread_t thread_id;
-		int ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
-		if (ret){ // On success, pthread_create() returns 0
-			debug_log("[check point] call disconnct_inner() in a new thread failed. err:%d\n", ret);	
-		}
+            debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
+            pthread_t thread_id;
+            int ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
+    		if (ret){ // On success, pthread_create() returns 0
+    			debug_log("[check point] call disconnct_inner() in a new thread failed. err:%d\n", ret);	
+    		}
         }else{// error command
                 ret=1;
         }

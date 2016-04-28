@@ -55,7 +55,7 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         if (pos){ // got a command
             debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
             pthread_t thread_id;
-            int ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
+            ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
     		if (ret){ // On success, pthread_create() returns 0
     			debug_log("[check point] call disconnct_inner() in a new thread failed. err:%d\n", ret);	
     		}
@@ -64,7 +64,7 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
             if (pos){
                 debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
                 pthread_t thread_id;
-                int ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);
+                ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);
                 if (ret){ // On success, pthread_create() returns 0
                     debug_log("[check point] call reconnect_inner() in a new thread failed. err:%d\n", ret);    
                 }                

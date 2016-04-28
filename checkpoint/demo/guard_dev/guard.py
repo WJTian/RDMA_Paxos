@@ -81,9 +81,14 @@ BIND_PORT=12345
 
 #disconnect cmd
 DISCONNECT_CMD="disconnect\n"
-DISCONNECT_SOCK="/tmp/checkpoint.server.sock"
+RECONNECT_CMD="reconnect\n"
+LIBEVENT_SOCK="/tmp/checkpoint.server.sock"
 # The unix socket I am listening for accepting internal request.
 UNIX_SOCK="/tmp/guard.sock"
+
+
+#update pid every 5 s
+TIMER_SECS=5.0
 
 DEF_INDEX="""<!DOCTYPE html>
 <html>
@@ -233,6 +238,21 @@ def getNextBaseName():
 	next_id = max_id+1
 	return os.path.join(STORE_BASE,"checkpoint_%d"%(next_id))
 
+def send_reconnect_cmd():
+	"""
+	Send a reconnect cmd to a unix socket, which is listened by libevent thread in RDMA code.
+	"""
+	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+	try:
+		MAX_RECV=512
+		sock.connect(LIBEVENT_SOCK)
+		sock.send(RECONNECT_CMD)
+		reply = sock.recv(MAX_RECV)
+		print "[send_reconnect_cmd] %s, reply: %s"%(RECONNECT_CMD,reply)	
+	except Exception as e:
+		print "[send_reconnect_cmd] send %s failed at unix socket"%(RECONNECT_CMD)
+		pass
+
 def send_disconnect_cmd():
 	"""
 	Send a disconnect cmd to a unix socket, which is listened by libevent thread in RDMA code.
@@ -240,7 +260,7 @@ def send_disconnect_cmd():
 	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 	try:
 		MAX_RECV=512
-		sock.connect(DISCONNECT_SOCK)
+		sock.connect(LIBEVENT_SOCK)
 		sock.send(DISCONNECT_CMD)
 		reply = sock.recv(MAX_RECV)
 		print "[send_disconnect_cmd] %s, reply: %s"%(DISCONNECT_CMD,reply)	
@@ -261,7 +281,8 @@ def inner_checkpoint(node_id,round_id):
 		print "[inner_checkpoint] sleep 1 seconds to wait for disconnect"
 		time.sleep(1)	
 		#remove --shell-job
-		cmd="/sbin/criu dump -v4 --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
+		#remove --leave-running
+		cmd="/sbin/criu dump -v4 -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		retcode = subprocess.call(cmd,shell=True)
 		if retcode:
@@ -271,6 +292,11 @@ def inner_checkpoint(node_id,round_id):
 			zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
 			print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
 			shutil.rmtree(tmpDir)
+			# pack all external resource, such as files.
+			# restore RDMA 
+			inner_restore(node_id,round_id)
+			# send reconnect cmd
+			send_reconnect_cmd()
 			#rsync zip file to others
 			print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
 			subprocess.call(RSYNC_CMD,shell=True)
@@ -293,7 +319,6 @@ def reset_pid():
 			print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
 	except Exception as e:
 		print "[reset_pid] Failed to get pid by cmd: %s"%(GETPID_CMD)
-	TIMER_SECS=5.0
 	threading.Timer(TIMER_SECS,reset_pid).start()
 	
 def inner_restore(node_id,round_id):
@@ -409,8 +434,6 @@ def start_inner(args):
 			print "[inner] ERR file %s cannot be removed."%(UNIX_SOCK)
 			print "[inner] Interface failed."
 			return
-	#update pid every 5 s
-	TIMER_SECS=5.0
 	threading.Timer(TIMER_SECS, reset_pid).start()
 	print "[inner] Interface(%s) will start."%(UNIX_SOCK)
 	srv = SocketServer.UnixStreamServer(UNIX_SOCK,InnerHandler)	

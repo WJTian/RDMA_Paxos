@@ -127,8 +127,8 @@ def processBench(config, bench):
     testscript.write('skip_client=true\n')
     testscript.write('fi\n')
 
-    if testname=="clamav":
-        testscript.write('sleep 20\n')
+    if testname=="clamav" or testname=="ssdb":
+        testscript.write('sleep 10\n')
 
     testscript.write('if [ "$skip_client" = "true" ]; then\n')
     testscript.write('echo "Skip benchmark and kill all servers and restart again"\n')

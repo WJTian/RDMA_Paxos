@@ -137,8 +137,26 @@ output_handler_t* get_output_handler_by_fd(int fd){
 
 //accept a buff with size, I will store into different connection (fd).
 //And return n number of hash values.
+#ifdef DEBUG_LOG
+void show_buff(unsigned char* buff, ssize_t buff_size){
+	fprintf(stderr,"[show_buff]#");
+	for (int i=0;i<buff_size;i++){
+		fprintf(stderr,"0x%x,",buff[i]);
+	}
+	fprintf(stderr,"#\n");
+}
+#else
+void show_buff(unsigned char* buff, ssize_t buff_size){
+	return;
+}
+#endif
+
+char tmpBuff[2*HASH_BUFFER_SIZE];
 int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 {
+	memcpy(tmpBuff,buff,buff_size);
+	tmpBuff[buff_size]=0;
+	show_buff(buff,buff_size);
 	debug_log("[store_output] fd: %d, input buff_size: %zu \n",fd, buff_size);
 	int retval=-1;
 	if (NULL==buff || 0 == buff_size){ // nothing to be done, but it is not a error
@@ -160,11 +178,18 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 		int wait_size = buff_size - push_size;
 		int actual_size = min(left_space,wait_size); 
 		unsigned char * dest_ptr = output_handler->hash_buffer + output_handler->hash_buffer_curr;
-		memcpy(dest_ptr,buff,actual_size);
+		// Bugfixed. at memcpy, buff need a offset.
+		unsigned char* src_ptr = buff+push_size;
+		memcpy(dest_ptr,src_ptr,actual_size);
 		output_handler->hash_buffer_curr+=actual_size;
 		left_space = HASH_BUFFER_SIZE - output_handler->hash_buffer_curr;
 		push_size+=actual_size;
+		debug_log("[store_output] fd:%d, copied %d bytes into hash_buffer[%d/%d], then push_size:%d\n",fd,actual_size,output_handler->hash_buffer_curr,HASH_BUFFER_SIZE,push_size);
 		if (0==left_space){ // The hash buffer is full.
+			memcpy(tmpBuff,output_handler->hash_buffer,HASH_BUFFER_SIZE);
+			tmpBuff[HASH_BUFFER_SIZE]=0;
+			show_buff(output_handler->hash_buffer,HASH_BUFFER_SIZE);
+			debug_log("[store_output] fd:%d, previous hash:0x%"PRIx64", buff will be used for crc64. buff:#%s#\n",fd,output_handler->hash,tmpBuff);
 			output_handler->hash = crc64(output_handler->hash,output_handler->hash_buffer,HASH_BUFFER_SIZE);
 			// curr is clear, since new hash is generated.
 			output_handler->hash_buffer_curr=0;

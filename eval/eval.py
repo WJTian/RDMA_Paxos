@@ -44,27 +44,50 @@ def processBench(config, bench):
     else:
         logger.error("No such hook option")   
 
+    if compare_option == "WITHOUT_OUTPUT_COMPARE":
+        check_output = "0"
+    elif compare_option == "WITH_OUTPUT_COMPARE":
+        check_output = "1"
+    else:
+        logger.error("No such compare option")
+
+
     repeats=config.getint(bench,'REPEATS')
     server_input=config.get(bench,'SERVER_INPUT')
     server_kill=config.get(bench,'SERVER_KILL')
     client_program=config.get(bench,'CLIENT_PROGRAM')
     client_input=config.get(bench,'CLIENT_INPUT')
+    client_input_list=client_input.split("|")
 
     testname,port_str = bench.split(" ")
+    if testname == "mysql":
+        hook_program = "sudo " + hook_program
+
+    if testname == "mongodb":
+        hook_program = hook_program.replace("nodes.local.cfg","nodes.mongodb.cfg")
     port = port_str.replace("port:","")
     logging.info("port: " + port)
     testscript = open(testname,"w")
     testscript.write('#! /bin/bash\n')
-    if server_count == 3 & len(server_kill)!=0:
-        testscript.write(server_kill + '\n' +
+
+    testscript.write('bash db_delete.sh\n')
+
+    if server_count == 3:
+        testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
-    elif server_count == 1 & len(server_kill)!=0:
+    elif server_count == 1:
         testscript.write(server_kill + '\n' )
 
     testscript.write('ssh ' + local_host + '  "' +'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
     'ssh ' + remote_hostone + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
      'ssh ' + remote_hosttwo + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = '+port+';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
+
+    testscript.write('ssh ' + local_host + '  "' +'sed -i \'/check_output/c     check_output = '+ check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
+    'ssh ' + remote_hostone + '  "' +'sed -i \'/check_output/c     check_output = '+ check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
+    'ssh ' + remote_hosttwo + '  "' +'sed -i \'/check_output/c     check_output = '+ check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
+
+
 
     if server_count == 3:
         testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +'"  \n'+ 'sleep 2 \n' +
@@ -72,16 +95,61 @@ def processBench(config, bench):
         'ssh -f ' + remote_hosttwo + '  "' + hook_program.replace("myid",node_id_thr) + server_program + ' ' + server_input + '" \n'+ 'sleep 5 \n' )
     elif server_count == 1:
         testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input + '" \n' + 'sleep 5 \n')
-    testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input +'"  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
-    if server_count == 3 & len(server_kill)!=0:
+
+    testscript.write('skip_client=false\n')
+    testscript.write('local_pid=$(ssh ' + local_host + ' pidof ' + server_program + ' | wc -l)\n')
+    testscript.write('if [ "$local_pid" == "1" ]; then\n')
+    testscript.write('echo ' + testname + ' in localhost is running\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('else\n')
+    testscript.write('echo ' + testname + ' in localhost is breaking down\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('skip_client=true\n')
+    testscript.write('fi\n')
+
+    testscript.write('remote1_pid=$(ssh ' + remote_hostone + ' pidof ' + server_program + ' | wc -l)\n')
+    testscript.write('if [ "$remote1_pid" == "1" ]; then\n')
+    testscript.write('echo ' + testname + ' in remote_hostone is running\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('else\n')
+    testscript.write('echo ' + testname + ' in remote_hostone is breaking down\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('skip_client=true\n')
+    testscript.write('fi\n')
+
+    testscript.write('remote2_pid=$(ssh ' + remote_hosttwo + ' pidof ' + server_program + ' | wc -l)\n')
+    testscript.write('if [ "$remote2_pid" == "1" ]; then\n')
+    testscript.write('echo ' + testname + ' in remote_hosttwo is running\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('else\n')
+    testscript.write('echo ' + testname + ' in remote_hosttwo is breaking down\n')
+    testscript.write('echo -e "\\n"\n')
+    testscript.write('skip_client=true\n')
+    testscript.write('fi\n')
+
+    if testname=="clamav" or testname=="ssdb":
+        testscript.write('sleep 10\n')
+
+    testscript.write('if [ "$skip_client" = "true" ]; then\n')
+    testscript.write('echo "Skip benchmark and kill all servers and restart again"\n')
+    testscript.write('else\n')
+    if testname == "clamav" or testname == "mediatomb":
+        for client_input_part in client_input_list:
+            testscript.write(client_program + ' ' + client_input_part +'  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+    else:
+        for client_input_part in client_input_list:
+            testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  > ' + config_file.replace(".cfg","") + '_result/' + config_file.replace(".cfg","") + '_output_$1' +  '\n' + 'sleep 10 \n')
+    testscript.write('fi\n')
+    if server_count == 3:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
         'ssh ' + remote_hostone + '  "' + server_kill + '"\n' +
-        'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n')
-    elif server_count == 1 & len(server_kill)!=0:
+        'ssh ' + remote_hosttwo + '  "' + server_kill + '"\n' + 'sleep 30')
+    elif server_count == 1:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
 
     testscript.close()
     os.system('chmod +x '+testname)
+    os.system('mkdir ' + config_file.replace(".cfg","") + '_result')
     for repeat in range(0,repeats):
         os.system('./' + testname + " " + str(repeat))
     #os.system('rm -rf ' + testname)

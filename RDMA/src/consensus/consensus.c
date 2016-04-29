@@ -9,7 +9,6 @@
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
-#define MEASURE_LATENCY
 #define USE_SPIN_LOCK
 
 //#define BDB

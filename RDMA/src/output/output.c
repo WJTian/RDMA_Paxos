@@ -151,11 +151,8 @@ void show_buff(unsigned char* buff, ssize_t buff_size){
 }
 #endif
 
-char tmpBuff[2*HASH_BUFFER_SIZE];
 int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 {
-	memcpy(tmpBuff,buff,buff_size);
-	tmpBuff[buff_size]=0;
 	show_buff(buff,buff_size);
 	debug_log("[store_output] fd: %d, input buff_size: %zu \n",fd, buff_size);
 	int retval=-1;
@@ -186,8 +183,6 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 		push_size+=actual_size;
 		debug_log("[store_output] fd:%d, copied %d bytes into hash_buffer[%d/%d], then push_size:%d\n",fd,actual_size,output_handler->hash_buffer_curr,HASH_BUFFER_SIZE,push_size);
 		if (0==left_space){ // The hash buffer is full.
-			memcpy(tmpBuff,output_handler->hash_buffer,HASH_BUFFER_SIZE);
-			tmpBuff[HASH_BUFFER_SIZE]=0;
 			show_buff(output_handler->hash_buffer,HASH_BUFFER_SIZE);
 			debug_log("[store_output] fd:%d, previous hash:0x%"PRIx64", buff will be used for crc64. buff:#%s#\n",fd,output_handler->hash,tmpBuff);
 			output_handler->hash = crc64(output_handler->hash,output_handler->hash_buffer,HASH_BUFFER_SIZE);

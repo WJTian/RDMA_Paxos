@@ -151,9 +151,9 @@ void show_buff(unsigned char* buff, ssize_t buff_size){
 }
 #endif
 
+char tmpBuff[2*HASH_BUFFER_SIZE];
 int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 {
-	char tmpBuff[512];
 	memcpy(tmpBuff,buff,buff_size);
 	tmpBuff[buff_size]=0;
 	show_buff(buff,buff_size);

@@ -8,6 +8,8 @@
 #include "../include/util/debug.h"
 
 const char* db_dir="./.db";
+u_int32_t pagesize = 64 * 1024;
+//#define ENV
 
 struct db_t{
     DB* bdb_ptr;
@@ -35,6 +37,7 @@ db* initialize_db(const char* db_name, uint32_t flag){
     }
     full_path = (char*)malloc(strlen(db_dir) + strlen(db_name) + 2);
     mk_path(full_path, db_dir, db_name);
+#ifdef ENV
     if ((ret = db_env_create(&dbenv, 0)) != 0) {
         dbenv->err(dbenv, ret, "Environment Created: %s", db_dir);
         goto db_init_return;
@@ -46,24 +49,35 @@ db* initialize_db(const char* db_name, uint32_t flag){
     /* Initialize the DB handle */
     if((ret = db_create(&b_db,dbenv,flag)) != 0){
         err_log("DB : %s.\n", db_strerror(ret));
-        goto db_init_return;
-    }
-
-    if((ret = b_db->open(b_db, NULL, db_name, NULL, DB_BTREE, DB_THREAD|DB_CREATE,0)) != 0){
-        //b_db->err(b_db,ret,"%s","test.db");
-        goto db_init_return;
-    }
-    db_ptr = (db*)(malloc(sizeof(db)));
-    db_ptr->bdb_ptr = b_db;
-
-db_init_return:
-    if(full_path != NULL){
-        free(full_path);
-    }
-    if(db_ptr != NULL){
-        ;
-    }
-    return db_ptr;
+        goto db_init_return;                                                                                                                                                   
+    }                                                                                                                                                                          
+#else                                                                                                                                                                          
+    /* Initialize the DB handle */                                                                                                                                             
+    if((ret = db_create(&b_db,NULL,flag)) != 0){                                                                                                                               
+        err_log("DB : %s.\n", db_strerror(ret));                                                                                                                               
+        goto db_init_return;                                                                                                                                                   
+    }                                                                                                                                                                          
+#endif                                                                                                                                                                         
+    if((ret = b_db->set_pagesize(b_db, pagesize)) != 0){                                                                                                                       
+        err_log("DB : %s.\n", db_strerror(ret));                                                                                                                               
+        goto db_init_return;                                                                                                                                                   
+    }                                                                                                                                                                          
+                                                                                                                                                                               
+    if((ret = b_db->open(b_db, NULL, db_name, NULL, DB_BTREE, DB_THREAD|DB_CREATE,0)) != 0){ // db_name is the on-disk file that holds the database                            
+        //b_db->err(b_db,ret,"%s","test.db");                                                                                                                                  
+        goto db_init_return;                                                                                                                                                   
+    }                                                                                                                                                                          
+    db_ptr = (db*)(malloc(sizeof(db)));                                                                                                                                        
+    db_ptr->bdb_ptr = b_db;                                                                                                                                                    
+                                                                                                                                                                               
+db_init_return:                                                                                                                                                                
+    if(full_path != NULL){                                                                                                                                                     
+        free(full_path);                                                                                                                                                       
+    }                                                                                                                                                                          
+    if(db_ptr != NULL){                                                                                                                                                        
+        ;                                                                                                                                                                      
+    }                                                                                                                                                                          
+    return db_ptr;                                                                                                                                                             
 }
 
 void close_db(db* db_p,uint32_t mode){

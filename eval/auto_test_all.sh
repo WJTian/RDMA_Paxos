@@ -3,7 +3,7 @@
 # Author: jingyu
 # Date: April 30, 2016
 # Description: all eval.py for every cfg
-
+# usage: bash ./auto_test_all.sh 2>&1 |  tee ./auto_test_all.run.log
 BLACK_LIST="zookeeper.cfg guard-ck.cfg"
 InBlackList(){
 	for item in $BLACK_LIST; do

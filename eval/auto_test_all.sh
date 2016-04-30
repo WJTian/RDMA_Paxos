@@ -26,7 +26,7 @@ for cfg in $cfg_list ; do
 		echo "$cfg is in the black list, skip it."
 	else
 		echo "`date` start run: python eval -f $cfg"
-		#python eval -f $cfg	
+		python eval.py -f $cfg
 		echo "`date` finished: python eval -f $cfg"
 	fi
 	echo "`date` Handle CFG: $cfg ends"

@@ -4,10 +4,9 @@ Date: 	April 5, 2016
 Description: The function do_decision will consider the hashvalues from all nodes, then make a decision about whether to launch a restore process.
 */
 
+#define DEBUG_LOG
 #include "../include/output/output.h"
 #include "../include/util/debug.h"
-
-
 //This function will count the number of nodes whose hashvalue is the same as aim_hash
 int count_hash(output_peer_t* output_peers, int group_size, uint64_t aim_hash){
 	int i=0;

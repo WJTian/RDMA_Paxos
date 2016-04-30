@@ -58,8 +58,8 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	if (NULL==fp){
 		sprintf(f_name,"do_decision.%d.log",getpid());
 		fp = fopen (f_name, "wb");
-		if (NULL==fd){
-			perror("[do_decision] fatal error, do");
+		if (NULL==fp){
+			perror("[do_decision] fatal error, can not create do_decision log file.\n");
 			return -1;
 		}
 	}

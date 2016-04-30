@@ -4,7 +4,6 @@ Date: 	April 5, 2016
 Description: The function do_decision will consider the hashvalues from all nodes, then make a decision about whether to launch a restore process.
 */
 
-#define DEBUG_LOG
 #include "../include/output/output.h"
 #include "../include/util/debug.h"
 //This function will count the number of nodes whose hashvalue is the same as aim_hash
@@ -51,9 +50,19 @@ uint64_t get_master_hash(output_peer_t* output_peers, int group_size){
 
 	return master_hash;
 }
-
+// do_decision will open a file to log the decision
 // make dicision and trigger a restore cmd to guard.py
 int do_decision(output_peer_t* output_peers, int group_size){
+	static FILE * fp=NULL; 
+	char f_name[64];
+	if (NULL==fp){
+		sprintf(f_name,"do_decision.%d.log",getpid());
+		fp = fopen (f_name, "wb");
+		if (NULL==fd){
+			perror("[do_decision] fatal error, do");
+			return -1;
+		}
+	}
 	int i=0;
 	int threshold = 0; // threshold for majority
 	int con_num = 0; // number of nodes whose hashvalue is same as master, including master itself.
@@ -65,7 +74,7 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	// If one of hash is 0, just return.
 	int zero_count = 0;
 	for (i = 0; i < group_size; i++){
-		debug_log("[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld\n",
+		fprintf(fp,"[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld\n",
 			output_peers[i].leader_id,
 			output_peers[i].node_id,
 			output_peers[i].hash,
@@ -75,7 +84,7 @@ int do_decision(output_peer_t* output_peers, int group_size){
 		}
 	}
 	if (zero_count){
-		debug_log("[do_decision] failed to make decision since one of hash is 0\n");
+		fprintf(fp,"[do_decision] failed to make decision since one of hash is 0\n");
 		// 0 means do nothing.
 		return 0;
 	}
@@ -88,24 +97,25 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	*/
 	con_num = count_hash(output_peers,group_size,master_hash);
 	if (con_num == group_size){ // D.0 all hash are the same.
-		debug_log("[do_decision] D.0 All hash are the same (Nothing to do)\n");
+		fprintf(fp,"[do_decision] D.0 All hash are the same (Nothing to do)\n");
 		ret=0;
 		return ret;
 	}
 	if (con_num >= threshold ){ // // D.1 H(header) == H(major).
-		debug_log("[do_decision] D.1 Minority need redo.\n");
+		fprintf(fp,"[do_decision] D.1 Minority need redo.\n");
 		ret=1;
 		return ret;	
 	}
 	major_cnt = major_count_hash(output_peers, group_size); 
 	if (major_cnt >= threshold){ // D2. H(header) != H(major).
-    	debug_log("[do_decision] D.2 Master and Minority need redo.\n"); 
+    	fprintf(fp,"[do_decision] D.2 Master and Minority need redo.\n"); 
 		ret=2;
 		return ret;   
     }
 	// consensus failed
-	debug_log("[hash_consensus] D.3 All nodes need redo.\n");
+	fprintf(fp,"[hash_consensus] D.3 All nodes need redo.\n");
 	ret = 3;
+	fflush(fp);
 	return ret;
 }
 

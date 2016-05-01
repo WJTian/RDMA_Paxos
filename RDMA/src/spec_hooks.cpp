@@ -245,14 +245,14 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 }
 
 
-extern "C" ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
-                 struct sockaddr *src_addr, socklen_t *addrlen)
+extern "C" ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen)
 {
 	typedef ssize_t (*orig_recvfrom_type)(int, void *, size_t, int, struct sockaddr*, socklen_t*);
-        static orig_recvfrom_type orig_recvfrom;
-        if (!orig_recvfrom)
-                orig_recvfrom = (orig_recvfrom_type) dlsym(RTLD_NEXT, "recvfrom");
-        ssize_t ret = orig_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+	static orig_recvfrom_type orig_recvfrom;
+	if (!orig_recvfrom)
+		orig_recvfrom = (orig_recvfrom_type) dlsym(RTLD_NEXT, "recvfrom");
+	
+	ssize_t ret = orig_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
 	return ret;
 
 }

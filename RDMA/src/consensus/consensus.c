@@ -11,6 +11,8 @@
 
 #define USE_SPIN_LOCK
 
+//#define BDB
+
 typedef enum request_type_t{
 	P_CONNECT=1,
 	P_SEND=2,
@@ -188,12 +190,15 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
 	SYS_LOG(comp, "storing view id is  %"PRIu32", req id %"PRIu32", entry addr is %p, end is %"PRIu64"\n", 
 		next.view_id, next.req_id, (void*)entry, SRV_DATA->log->end);
         request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
+
+#ifdef BDB
         if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data))
         {
             fprintf(stderr, "Can not save record from database.\n");
             goto handle_submit_req_exit;
         }
-        
+#endif
+
         char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
         *dummy = 'f';
 
@@ -276,14 +281,14 @@ void *handle_accept_req(void* arg)
             {
 		SYS_LOG(comp, "match get view %d, req id is %d, type is %d, size is %d, entry point %p\n", 
 		        entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size, (void*)entry);
+                char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
+                if (*dummy == 'f') // atmoic opeartion
+                {
 #ifdef MEASURE_LATENCY
                 clock_handler c_k;
                 clock_init(&c_k);
                 clock_add(&c_k);
 #endif
-                char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
-                if (*dummy == 'f') // atmoic opeartion
-                {
 		    SYS_LOG(comp, "found id view %d, req id is %d, type is %d, size is %d\n",
 			     entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size);
                     if(entry->msg_vs.view_id < comp->cur_view->view_id){
@@ -304,7 +309,9 @@ void *handle_accept_req(void* arg)
                     db_key_type record_no = vstol(&entry->msg_vs);
                     // record the data persistently
                     request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
+#ifdef BDB
                     store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data);
+#endif
                     SRV_DATA->log->tail = SRV_DATA->log->end;
                     SRV_DATA->log->end += log_entry_len(entry);
                     uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
@@ -343,16 +350,22 @@ void *handle_accept_req(void* arg)
 
                     post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags, poll_completion);
 
+#ifdef MEASURE_LATENCY
+                    clock_add(&c_k);
+#endif
+
                     if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
                     {
                         start = vstol(comp->highest_committed_vs)+1;
                         end = vstol(&entry->req_canbe_exed);
 			SYS_LOG(comp, "start is %"PRIu64", end is  %"PRIu64"\n", start, end);
+#ifdef BDB
                         for(index = start; index <= end; index++)
                         {
                             comp->ucb(index,comp->up_para);
 			    SYS_LOG(comp, "finish index %"PRIu64"\n", index);
                         }
+#endif
                         *(comp->highest_committed_vs) = entry->req_canbe_exed;
                     }
 		    SYS_LOG(comp, "before leaving..... %d, SRV_DATA->log->end is %d\n", entry->msg_vs.view_id, SRV_DATA->log->end);

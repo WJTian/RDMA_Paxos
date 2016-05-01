@@ -333,7 +333,7 @@ def pack_ext_res(tmpDir,AIM_PID):
 	except Exception as e:
 		print "[pack_ext_res] %s failed to be stored. error:%s"%(EXT_RES_DIR,str(e))
 		return -1
-		
+
 def unpack_ext_res(tmpDir):
 	"""
 	Two steps:
@@ -407,13 +407,13 @@ def inner_checkpoint(node_id,round_id):
 			zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
 			print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
 			shutil.rmtree(tmpDir)
+			#rsync zip file to others
+			print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
+			subprocess.call(RSYNC_CMD,shell=True)
 			# restore RDMA 
 			inner_restore(node_id,round_id)
 			# send reconnect cmd
 			send_reconnect_cmd()
-			#rsync zip file to others
-			print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
-			subprocess.call(RSYNC_CMD,shell=True)
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
 	sys.stdout.flush()
@@ -441,18 +441,19 @@ def inner_restore(node_id,round_id):
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"
 	print "[inner_restore] find current checkpoint file %s"%(currZip)
-        try:
-                tmpDir = tempfile.mkdtemp()
-        except Exception as e:
-                pass
-        if tmpDir and os.path.exists(currZip):
-		reset_pid()
-		# kill 
-		subprocess.call(KILL_CMD,shell=True)
-		time.sleep(1) # wait for kill
+    try:
+        tmpDir = tempfile.mkdtemp()
+    except Exception as e:
+            pass
+    if tmpDir and os.path.exists(currZip):
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
+		# kill
+		reset_pid() 
+		subprocess.call(KILL_CMD,shell=True)
+		# wait for kill
+		time.sleep(1)
 		# Before criu restore, fd files and external files need to be replaced.
 		unpack_ext_res(tmpDir)
 		# remove --shell-job
@@ -463,8 +464,10 @@ def inner_restore(node_id,round_id):
 			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
 		shutil.rmtree(tmpDir)
 		reset_pid()	
-	sys.stdout.flush()
-	return 
+		sys.stdout.flush()
+		return
+	else
+		print "[inner_restore] unable to to restore since %s is missing."%(currZip) 
 
 def inner_service(cmd,node_id,round_id):
 	urls=[

@@ -152,7 +152,10 @@ def processBench(config, bench):
     testscript.close()
     os.system('chmod +x '+testname)
     #os.system('mkdir ' + config_file.replace(".cfg","") + git_ver)
+    os.system('rm -rf current')
     os.system('mkdir ' + config_file.replace(".cfg","") + '_' + git_ver + '_' + time_stamp)
+    os.system('ln -s ' + config_file.replace(".cfg","") + '_' + git_ver + '_' + time_stamp + '  ' + 'current')
+    os.system('cp ' + config_file + ' ' + config_file.replace(".cfg","") + '_' + git_ver + '_' + time_stamp)
     for repeat in range(0,repeats):
         os.system('./' + testname + " " + str(repeat))
     #os.system('rm -rf ' + testname)

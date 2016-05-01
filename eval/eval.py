@@ -137,10 +137,10 @@ def processBench(config, bench):
     testscript.write('else\n')
     if testname == "clamav" or testname == "mediatomb":
         for client_input_part in client_input_list:
-            testscript.write(client_program + ' ' + client_input_part +'  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
+            testscript.write('timeout 240 ' + client_program + ' ' + client_input_part +'  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
     else:
         for client_input_part in client_input_list:
-            testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
+            testscript.write('timeout 240 ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
     testscript.write('fi\n')
     if server_count == 3:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +

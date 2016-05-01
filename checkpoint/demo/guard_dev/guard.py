@@ -86,7 +86,12 @@ LIBEVENT_SOCK="/tmp/checkpoint.server.sock"
 # The unix socket I am listening for accepting internal request.
 UNIX_SOCK="/tmp/guard.sock"
 
-
+# all db files should be stored into this dir
+EXT_RES_DIR="/data/store/"
+# EXT_RES_DIR will be copied into this dir, and then be packed
+EXT_RES_DIR_INNER="ext_res_dir/" 
+FD_INDEX_NAME="fd_index.txt"
+FD_STORE_DIR_INNER="fd_dir/"
 #update pid every 5 s
 TIMER_SECS=5.0
 
@@ -272,7 +277,30 @@ def generate_fd_index(tmpDir,AIM_PID):
 	"""
 	1. to generate a fd_index.txt,
 	"""
-	print "tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+	print "[generate_fd_index] tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
+	fd_index=None
+	try:
+		fd_index = open(fd_index_path,"wb");
+	except Exception as e:
+		print "[generate_fd_index] open %s failed."%(fd_index_path)
+		return -1
+	if None != fd_index: 
+		proc_fd_dir = "/proc/%d/fd"%(AIM_PID)
+		print "[generate_fd_index] reading %s"%(proc_fd_dir)
+		dirs = os.listdir(proc_fd_dir)
+		for item in dirs:
+			abs_path = os.path.join(proc_fd_dir,item)
+			orig_path = os.readlink(abs_path)
+			mode = os.stat(orig_path).st_mode # though os.stat will follow the softlink
+			if stat.S_ISREG(mode):
+				print "[generate_fd_index] found fd files:%s"%(orig_path)
+				fd_index.write("%s\n"%(orig_path))
+		print "[generate_fd_index] fd_index will be closed"
+		fd_index.close()
+		return 0
+	else:
+		return -1
 
 def pack_ext_res(tmpDir,AIM_PID):
 	"""
@@ -280,15 +308,69 @@ def pack_ext_res(tmpDir,AIM_PID):
 	1. to read a fd_index.txt, then pack all opened fd but regular files. into dir fd_dir/.
 	2. pack a directory define as EXT_RES_DIR, such as /data into ext_res_dir/.
 	"""
-	print "tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
-
+	print "[pack_ext_res] tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+	# read fd_index.txt
+	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
+	fd_dir = os.path.join(tmpDir,FD_STORE_DIR_INNER)
+	os.mkdir(fd_dir)
+	fd_index=None
+	try:
+		fd_index = open(fd_index_path,"rb")
+		lines = fd_index.readlines()
+		for item in lines:
+			item = item.strip('\n')
+			shutil.copy(item, fd_dir)
+			print "[pack_ext_res] %s has been stored into %s."%(item,fd_dir)
+	except Exception as e:
+		print "[pack_ext_res] open file %s failed."%(fd_index_path)
+		return -1
+	# pack EXT_RES_DIR
+	ext_res_dir_inner = os.path.join(tmpDir,EXT_RES_DIR_INNER)
+	try:
+		shutil.copytree(EXT_RES_DIR,ext_res_dir_inner)
+		print "[pack_ext_res] %s has been stored into %s"%(EXT_RES_DIR,ext_res_dir_inner)
+		return 0
+	except Exception as e:
+		print "[pack_ext_res] %s failed to be stored. error:%s"%(EXT_RES_DIR,str(e))
+		return -1
+		
 def unpack_ext_res(tmpDir):
 	"""
 	Two steps:
 	1. to read fd_index.txt, then replace files from fd_dir/ to abslute path.
 	2. to replace /data from ext_res_dir/
 	"""
-	print "tmpDir: %s"%(tmpDir)
+	print "[unpack_ext_res] tmpDir: %s"%(tmpDir)
+	# read fd_index.txt
+	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
+	fd_dir = os.path.join(tmpDir,FD_STORE_DIR_INNER)
+	os.mkdir(fd_dir)
+	fd_index=None
+	try:
+		fd_index = open(fd_index_path,"rb")
+		lines = fd_index.readlines()
+		for item in lines:
+			item = item.strip('\n')
+			base_name = os.path.basename(item)
+			src_name = os.path.join(fd_dir,base_name)
+			try:
+				shutil.copyfile(src_name,item)
+				print "[unpack_ext_res] %s has been copy to %s."%(src_name,item)
+			except Exception as e:
+				print "[unpack_ext_res] %s failed to restore."%(item)
+				pass
+	except Exception as e:
+		print "[pack_ext_res] open file %s failed."%(fd_index_path)
+		return -1
+	# replace
+	ext_res_dir_inner = os.path.join(tmpDir,EXT_RES_DIR_INNER)
+	# remove it first, then move
+	try:
+		shutil.rmtree(EXT_RES_DIR)
+		shutil.move(ext_res_dir_inner,EXT_RES_DIR)
+	except Exception as e:
+		print "[unpack_ext_res] replace error."
+		return -1
 
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
@@ -301,9 +383,15 @@ def inner_checkpoint(node_id,round_id):
 	if tmpDir:
 		send_disconnect_cmd()
 		print "[inner_checkpoint] sleep 1 seconds to wait for disconnect"
-		time.sleep(1)	
+		time.sleep(1)
+		reset_pid()
 		# before criu dump, fd_index.txt should be generated and be stored into tmpDir.
-		generate_fd_index(tmpDir,AIM_PID)
+		# return 0 means ok
+		retcode = generate_fd_index(tmpDir,AIM_PID)
+		if retcode:
+			print "[inner_checkpoint] generate_fd_index called but failed.\n"
+			sys.stdout.flush()
+			return
 		#remove --shell-job
 		#remove --leave-running
 		cmd="/sbin/criu dump -v4 -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)

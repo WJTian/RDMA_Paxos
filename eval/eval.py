@@ -137,10 +137,10 @@ def processBench(config, bench):
     testscript.write('else\n')
     if testname == "clamav" or testname == "mediatomb":
         for client_input_part in client_input_list:
-            testscript.write(client_program + ' ' + client_input_part +'  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
+            testscript.write(client_program + ' ' + client_input_part +'  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
     else:
         for client_input_part in client_input_list:
-            testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  > ' + testname + '_result/' + config_file.replace(".cfg","") + "_" +  git_ver + "_" + time_stamp + '_output_$1' +  '\n' + 'sleep 10 \n')
+            testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
     testscript.write('fi\n')
     if server_count == 3:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
@@ -152,7 +152,7 @@ def processBench(config, bench):
     testscript.close()
     os.system('chmod +x '+testname)
     #os.system('mkdir ' + config_file.replace(".cfg","") + git_ver)
-    os.system('mkdir ' + testname +"_result")
+    os.system('mkdir ' + config_file.replace(".cfg","") + '_' + git_ver + '_' + time_stamp)
     for repeat in range(0,repeats):
         os.system('./' + testname + " " + str(repeat))
     #os.system('rm -rf ' + testname)

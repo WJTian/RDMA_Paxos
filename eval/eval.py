@@ -5,6 +5,8 @@
 import ConfigParser
 import argparse
 import logging
+import time
+import datetime
 import sys
 import os
 
@@ -88,7 +90,6 @@ def processBench(config, bench):
     'ssh ' + remote_hosttwo + '  "' +'sed -i \'/check_output/c     check_output = '+ check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
 
 
-
     if server_count == 3:
         testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid",node_id_one) + server_program + ' ' + server_input +'"  \n'+ 'sleep 2 \n' +
         'ssh -f ' + remote_hostone + '  "' + hook_program.replace("myid",node_id_two) + server_program + ' ' + server_input + '" \n' + 'sleep 2 \n' +
@@ -138,7 +139,7 @@ def processBench(config, bench):
             testscript.write(client_program + ' ' + client_input_part +'  > ' + config_file.replace(".cfg","") + '_output_$1'  '\n' + 'sleep 5 \n')
     else:
         for client_input_part in client_input_list:
-            testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  > ' + config_file.replace(".cfg","") + '_result/' + config_file.replace(".cfg","") + '_output_$1' +  '\n' + 'sleep 10 \n')
+            testscript.write('ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  > ' + testname + '_result/' + config_file.replace(".cfg","") + "_" +  git_ver + "_" + time_stamp + '_output_$1' +  '\n' + 'sleep 10 \n')
     testscript.write('fi\n')
     if server_count == 3:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
@@ -149,7 +150,8 @@ def processBench(config, bench):
 
     testscript.close()
     os.system('chmod +x '+testname)
-    os.system('mkdir ' + config_file.replace(".cfg","") + '_result')
+    #os.system('mkdir ' + config_file.replace(".cfg","") + git_ver)
+    os.system('mkdir ' + testname +"_result")
     for repeat in range(0,repeats):
         os.system('./' + testname + " " + str(repeat))
     #os.system('rm -rf ' + testname)
@@ -186,6 +188,25 @@ def getConfigFullPath(config_file):
         return None
     return os.path.abspath(config_file)
 
+def getTimeStamp():
+    try:
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d-%H-%M-%S')
+    except:
+        logging.warning("could not get time stamp")
+        return None
+    return st.replace("\n","")
+
+
+
+def getGitVersion():
+    try:
+        git_ver=os.popen('git rev-parse --short HEAD')
+        git_ver_str=git_ver.read()
+    except:
+        logging.warning("no git version information")
+        return None
+    return git_ver_str.replace("\n","")
 
 
 if __name__ == "__main__":
@@ -235,6 +256,8 @@ if __name__ == "__main__":
     #find the location of bash and print it
     bash_path = os.popen("which bash").readlines()
     #print bash_path
+    git_ver = getGitVersion()
+    time_stamp = getTimeStamp()
     if not bash_path:
         logging.critical("cannot find shell 'bash'")
         sys.exit(1)

@@ -268,13 +268,27 @@ def send_disconnect_cmd():
 		print "[send_disconnect_cmd] send %s failed at unix socket"%(DISCONNECT_CMD)
 		pass
 
+def generate_fd_index(tmpDir,AIM_PID):
+	"""
+	1. to generate a fd_index.txt,
+	"""
+	print "tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+
 def pack_ext_res(tmpDir,AIM_PID):
 	"""
 	Two steps:
-	1.Generate a fd_index.txt, then pack all opened fd but regular files. into dir fd_dir/.
+	1. to read a fd_index.txt, then pack all opened fd but regular files. into dir fd_dir/.
 	2. pack a directory define as EXT_RES_DIR, such as /data into ext_res_dir/.
 	"""
 	print "tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+
+def unpack_ext_res(tmpDir):
+	"""
+	Two steps:
+	1. to read fd_index.txt, then replace files from fd_dir/ to abslute path.
+	2. to replace /data from ext_res_dir/
+	"""
+	print "tmpDir: %s"%(tmpDir)
 
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
@@ -288,6 +302,8 @@ def inner_checkpoint(node_id,round_id):
 		send_disconnect_cmd()
 		print "[inner_checkpoint] sleep 1 seconds to wait for disconnect"
 		time.sleep(1)	
+		# before criu dump, fd_index.txt should be generated and be stored into tmpDir.
+		generate_fd_index(tmpDir,AIM_PID)
 		#remove --shell-job
 		#remove --leave-running
 		cmd="/sbin/criu dump -v4 -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
@@ -296,6 +312,7 @@ def inner_checkpoint(node_id,round_id):
 		if retcode:
 			print "[inner_checkpoint] criu dump error, please cat /tmp/criu.dump.log"
 		else:
+			# Currently, the target has been closed by criu.
 			# pack all external resource, such as files, into tmpDir.
 			pack_ext_res(tmpDir,AIM_PID);
 			zipBaseName = getNextBaseName() # without extName
@@ -348,6 +365,8 @@ def inner_restore(node_id,round_id):
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
+		# Before criu restore, fd files and external files need to be replaced.
+		unpack_ext_res(tmpDir)
 		# remove --shell-job
 		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)

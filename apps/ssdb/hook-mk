@@ -14,7 +14,7 @@ make
 LOCAL_IP=$(cat $RDMA_ROOT/apps/env/local_host)
 
 sed -i "s/ip: 127.0.0.1/ip: 0.0.0.0/g" ./ssdb.conf
-sed -i "s/port: 8888/port: 2888/g" ./ssdb.conf
+sed -i "s/port: 8888/port: 28888/g" ./ssdb.conf
 #sed -i "s/#id: svc_2/id: svc_1/g" ./ssdb.conf
 #sed -i "s/#type/type/g" ./ssdb.conf
 #sed -i "s/#host: localhost/host: $LOCAL_IP/g" ./ssdb.conf

@@ -16,9 +16,7 @@ CheckPoint procedure will use criu to dump a running process memory image into f
 
 1. to dilivery the new zip file to all other machines.
 
-1. to restore self, becuase the process has been closed by criu.
-
-1. to send "reconnect" command to RDMA program through unix socket.
+1. to restore self, becuase the process has been closed by criu. In the restore procuder, "reconnect" command will be sent.
 
 # Restore
 
@@ -35,4 +33,6 @@ Restore procedure will unzip the checkpoint_[N].zip, in which N will be the larg
 1. to clean tempDir.
 
 1. to obtain new pid, since the pid maybe changed when restoring in a different machine.
+
+1. to send "reconnect" command to RDMA program through unix socket.
 

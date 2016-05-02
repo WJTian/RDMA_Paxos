@@ -371,9 +371,13 @@ def unpack_ext_res(tmpDir):
 	# remove it first, then move
 	try:
 		shutil.rmtree(EXT_RES_DIR)
-		shutil.move(ext_res_dir_inner,EXT_RES_DIR)
+		if os.path.exists(ext_res_dir_inner):
+			shutil.move(ext_res_dir_inner,EXT_RES_DIR)
+			return 0
+		else:
+			return -1
 	except Exception as e:
-		print "[unpack_ext_res] replace error."
+		print "[unpack_ext_res] replace error. error: %s"%(str(e))
 		return -1
 
 def inner_checkpoint(node_id,round_id):
@@ -416,8 +420,6 @@ def inner_checkpoint(node_id,round_id):
 			subprocess.call(RSYNC_CMD,shell=True)
 			# restore RDMA 
 			inner_restore(node_id,round_id)
-			# send reconnect cmd
-			send_reconnect_cmd()
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
 	sys.stdout.flush()
@@ -467,7 +469,9 @@ def inner_restore(node_id,round_id):
 		if retcode :
 			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
 		shutil.rmtree(tmpDir)
-		reset_pid()	
+		reset_pid()
+		# send reconnect cmd
+		send_reconnect_cmd()	
 		sys.stdout.flush()
 		return
 	else:

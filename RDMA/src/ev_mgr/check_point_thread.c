@@ -20,7 +20,8 @@
 #include <pthread.h>
 
 #define UNIX_SOCK_PATH "/tmp/checkpoint.server.sock"
-#define UNIX_CMD "disconnect"
+#define UNIX_CMD_disconnect "disconnect"
+#define UNIX_CMD_reconnect "reconnect"
 
 void accept_error_cb(struct evconnlistener *listener, void *ctx){
         struct event_base *base = evconnlistener_get_base(listener);
@@ -29,11 +30,17 @@ void accept_error_cb(struct evconnlistener *listener, void *ctx){
         event_base_loopexit(base, NULL);
 }
 
-void* call_disconnect_start(void *argc){
+void* call_disconnect_start(void *argv){
 	debug_log("[check point] disconnct_inner() is called at a new thread: %lu\n",(unsigned long)pthread_self());
 	int ret = disconnct_inner();
 	debug_log("[check point] disconnct_inner() is finished %lu\n",(unsigned long)pthread_self());
 	return NULL;
+}
+void* call_reconnect_start(void * argv){
+    debug_log("[check point] reconnect_inner() is called at a new thread: %lu\n",(unsigned long)pthread_self());
+    int ret = reconnect_inner();
+    debug_log("[check point] reconnect_inner() is finished %lu\n",(unsigned long)pthread_self());
+    return NULL;
 }
 void unix_read_cb(struct bufferevent *bev, void *ctx){
         struct evbuffer *input = bufferevent_get_input(bev);
@@ -43,17 +50,25 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         data = malloc(len);
         evbuffer_copyout(input, data, len);
         debug_log("[check point] read data:#%s#\n",data);
-        char* pos = strstr(data,UNIX_CMD);
+        char* pos = strstr(data,UNIX_CMD_disconnect);
         int ret=0;
         if (pos){ // got a command
-                debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
-		pthread_t thread_id;
-		int ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
-		if (ret){ // On success, pthread_create() returns 0
-			debug_log("[check point] call disconnct_inner() in a new thread failed. err:%d\n", ret);	
-		}
-        }else{// error command
-                ret=1;
+            debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
+            pthread_t thread_id;
+            ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
+    		if (ret){ // On success, pthread_create() returns 0
+    			debug_log("[check point] call disconnct_inner() in a new thread failed. err:%d\n", ret);	
+    		}
+        }else{// try other commands
+            pos = strstr(data,UNIX_CMD_reconnect);
+            if (pos){
+                debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
+                pthread_t thread_id;
+                ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);
+                if (ret){ // On success, pthread_create() returns 0
+                    debug_log("[check point] call reconnect_inner() in a new thread failed. err:%d\n", ret);    
+                }                
+            }
         }
         if (0==ret){
                 evbuffer_add_printf(output,"OK\n");
@@ -108,12 +123,12 @@ int start_unix_server_loop(){
         evconnlistener_set_error_cb(listener, accept_error_cb);
        	debug_log("[check point] Unix socket will be ready to accept at %s\n",UNIX_SOCK_PATH);
         event_base_dispatch(base); // It will loop
-	event_base_free(base);
+	    event_base_free(base);
         return 0;
 }
 
 void* check_point_thread_start(void* argv){
-	debug_log("[check_point] thread started. cmd:%s\n",UNIX_CMD);
+	debug_log("[check_point] thread started. cmd:%s and cmd:%s\n",UNIX_CMD_disconnect,UNIX_CMD_reconnect);
 	start_unix_server_loop();
 	return NULL;
 }

@@ -88,6 +88,7 @@ LIBEVENT_SOCK="/tmp/checkpoint.server.sock"
 UNIX_SOCK="/tmp/guard.sock"
 
 # all db files should be stored into this dir
+EXT_RES_DIR_PARENT="/data/"
 EXT_RES_DIR="/data/store/"
 # EXT_RES_DIR will be copied into this dir, and then be packed
 EXT_RES_DIR_INNER="ext_res_dir/" 
@@ -95,6 +96,10 @@ FD_INDEX_NAME="fd_index.txt"
 FD_STORE_DIR_INNER="fd_dir/"
 #update pid every 5 s
 TIMER_SECS=5.0
+#check point timer 5 mins
+CK_TIMER_SECS=5.0*60
+# only do checkpoint at no.1
+TIMER_CK_ID=1
 
 DEF_INDEX="""<!DOCTYPE html>
 <html>
@@ -372,7 +377,7 @@ def unpack_ext_res(tmpDir):
 	try:
 		shutil.rmtree(EXT_RES_DIR)
 		if os.path.exists(ext_res_dir_inner):
-			shutil.move(ext_res_dir_inner,EXT_RES_DIR)
+			shutil.move(ext_res_dir_inner,EXT_RES_DIR_PARENT)
 			return 0
 		else:
 			return -1
@@ -553,6 +558,12 @@ def start_outer(args):
 	srv = make_server(BIND_HOST, BIND_PORT, application)
 	srv.serve_forever()
 
+def timer_checkpoint():
+	print "[timer checkpoint] checkpoint will be done at this machine".
+	inner_checkpoint(SELF_ID,-1)
+	print "[inner] check point will be done in every %d seconds."%(CK_TIMER_SECS)
+	threading.Timer(CK_TIMER_SECS, timer_checkpoint).start()
+
 # The function will start inner interface handler in a thread
 def start_inner(args):
 	try:
@@ -563,6 +574,9 @@ def start_inner(args):
 			print "[inner] Interface failed."
 			return
 	threading.Timer(TIMER_SECS, reset_pid).start()
+	if TIMER_CK_ID == SELF_ID:
+		print "[inner] check point will be done in every %d seconds."%(CK_TIMER_SECS)
+		threading.Timer(CK_TIMER_SECS, timer_checkpoint).start()
 	print "[inner] Interface(%s) will start."%(UNIX_SOCK)
 	srv = SocketServer.UnixStreamServer(UNIX_SOCK,InnerHandler)	
 	srv.serve_forever()

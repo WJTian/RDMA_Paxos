@@ -441,11 +441,11 @@ def inner_restore(node_id,round_id):
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"
 	print "[inner_restore] find current checkpoint file %s"%(currZip)
-    try:
-        tmpDir = tempfile.mkdtemp()
-    except Exception as e:
-            pass
-    if tmpDir and os.path.exists(currZip):
+	try:
+		tmpDir = tempfile.mkdtemp()
+	except Exception as e:
+		pass
+	if tmpDir and os.path.exists(currZip):
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
@@ -466,7 +466,7 @@ def inner_restore(node_id,round_id):
 		reset_pid()	
 		sys.stdout.flush()
 		return
-	else
+	else:
 		print "[inner_restore] unable to to restore since %s is missing."%(currZip) 
 
 def inner_service(cmd,node_id,round_id):

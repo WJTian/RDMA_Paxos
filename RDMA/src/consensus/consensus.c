@@ -129,7 +129,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         view_stamp next = get_next_view_stamp(comp);
         SYS_LOG(comp, "handling request, view id is %"PRIu32", req id  %"PRIu32", type is %d, data is (%s), size is %zu\n",
 		               next.view_id, next.req_id, type, (char*)data, data_size);
-        if (type == P_CONNECT)
+        if (type == P_TCP_CONNECT)
         {
             clt_id->view_id = next.view_id;
             clt_id->req_id = next.req_id;
@@ -273,11 +273,11 @@ void *handle_accept_req(void* arg)
 
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
 
-            SYS_LOG(comp, "loop get view %d, req id is %d, type is %d, size is %d, entry point %p\n",
+            SYS_LOG(comp, "loop get view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu, entry point %p\n",
            	               entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size, (void*)entry);
             if (entry->data_size != 0)
             {
-                SYS_LOG(comp, "match get view %d, req id is %d, type is %d, size is %d, entry point %p\n", 
+                SYS_LOG(comp, "match get view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu, entry point %p\n", 
                                entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size, (void*)entry);
                 char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
                 if (*dummy == DUMMY_END) // atmoic opeartion
@@ -287,7 +287,7 @@ void *handle_accept_req(void* arg)
                     clock_init(&c_k);
                     clock_add(&c_k);
 #endif
-                    SYS_LOG(comp, "found id view %d, req id is %d, type is %d, size is %d\n",
+                    SYS_LOG(comp, "found view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu\n",
                                    entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size);
                     if(entry->msg_vs.view_id < comp->cur_view->view_id){
                     // TODO
@@ -364,7 +364,7 @@ void *handle_accept_req(void* arg)
                         }
                         *(comp->highest_committed_vs) = entry->req_canbe_exed;
                     }
-                    SYS_LOG(comp, "before leaving..... %d, SRV_DATA->log->end is %d\n", entry->msg_vs.view_id, SRV_DATA->log->end);
+                    SYS_LOG(comp, "before leaving..... %d, SRV_DATA->log->end is %"PRIu64"\n", entry->msg_vs.view_id, SRV_DATA->log->end);
 
 #ifdef MEASURE_LATENCY
                     clock_add(&c_k);

@@ -198,7 +198,7 @@ int launch_replica_thread(node* my_node, list* excluded_fds, list* excluded_thre
 	if (pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp) != 0)
 		rc = 1;
     pthread_t *replica_thread = (pthread_t*)malloc(sizeof(pthread_t));
-    *replica_thread = my_node->rep_thread
+    *replica_thread = my_node->rep_thread;
     listAddNodeTail(excluded_threads, (void*)replica_thread);
     return rc;
 }

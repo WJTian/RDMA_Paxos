@@ -71,7 +71,7 @@ void mgr_on_accept(int fd, event_manager* ev_mgr)
         memset(new_conn,0,sizeof(leader_tcp_pair));
 
         new_conn->key = fd;
-        HASH_ADD_INT(ev_mgr->leader_hash_map, key, new_conn);
+        HASH_ADD_INT(ev_mgr->leader_tcp_map, key, new_conn);
 
         rsm_op(ev_mgr->con_node, 0, NULL, P_TCP_CONNECT, &new_conn->vs);
     } else {
@@ -82,7 +82,7 @@ void mgr_on_accept(int fd, event_manager* ev_mgr)
             retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
         }
         replica_tcp_pair* ret = NULL;
-        HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
+        HASH_FIND(hh, ev_mgr->replica_tcp_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
         ret->s_p = fd;
         ret->accepted = 1;
     }
@@ -100,13 +100,13 @@ void mgr_on_recvfrom(event_manager* ev_mgr, void* buf, ssize_t ret, struct socka
         leader_udp_pair *s;
         char tmp[14];
         strncpy(tmp, src_addr->sa_data, 14);
-        HASH_FIND_STR(ev_mgr->udp_hash_map, tmp, s);
+        HASH_FIND_STR(ev_mgr->leader_udp_map, tmp, s);
         if (s == NULL)
         {
             leader_udp_pair* new_conn = malloc(sizeof(leader_udp_pair));
             memset(new_conn,0,sizeof(leader_udp_pair));
             strncpy(new_conn->sa_data, src_addr->sa_data, 14);
-            HASH_ADD_STR(ev_mgr->udp_hash_map, sa_data, new_conn);
+            HASH_ADD_STR(ev_mgr->leader_udp_map, sa_data, new_conn);
             rsm_op(ev_mgr->con_node, 0, NULL, P_UDP_CONNECT, &new_conn->vs);
             rsm_op(ev_mgr->con_node, ret, buf, P_SEND, &new_conn->vs);
         } else {
@@ -125,12 +125,12 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
     if (ev_mgr->node_id == leader_id)
     {
         leader_tcp_pair* ret = NULL;
-        HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, ret);
+        HASH_FIND_INT(ev_mgr->leader_tcp_map, &fd, ret);
         if (ret == NULL)
             goto mgr_on_close_exit;
 
         view_stamp close_vs = ret->vs;
-        HASH_DEL(ev_mgr->leader_hash_map, ret);
+        HASH_DEL(ev_mgr->leader_tcp_map, ret);
 
         rsm_op(ev_mgr->con_node, 0, NULL, P_CLOSE, &close_vs);
 	// nop is only for sending the close() consensus result to the replicas.
@@ -182,7 +182,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
                 // to do output proposal with hash value at this hash_index
                 // [finished] I need learn the function of this socket_pair
                 leader_tcp_pair* socket_pair = NULL;
-                HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
+                HASH_FIND_INT(ev_mgr->leader_tcp_map, &fd, socket_pair);
                 // [TODO] I remove this const to make it easy to pass compile, I will add it back.
                 dare_log_entry_t *log_entry_ptr = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
                 // [TODO] I need learn how to get group size from Cheng.
@@ -241,7 +241,7 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
         if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0 && listSearchKey(ev_mgr->excluded_fds, &fd) == NULL)
         {
             leader_tcp_pair* socket_pair = NULL;
-            HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
+            HASH_FIND_INT(ev_mgr->leader_tcp_map, &fd, socket_pair);
             rsm_op(ev_mgr->con_node, ret, buf, P_SEND, &socket_pair->vs);
         }
     }
@@ -251,13 +251,13 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
 static void do_action_close(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
     replica_tcp_pair* ret = NULL;
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
+    HASH_FIND(hh, ev_mgr->replica_tcp_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
         goto do_action_close_exit;
     }else{
         if (close(ret->p_s))
                 fprintf(stderr, "failed to close socket\n");
-        HASH_DEL(ev_mgr->replica_hash_map, ret);
+        HASH_DEL(ev_mgr->replica_tcp_map, ret);
     }
 do_action_close_exit:
     return;
@@ -267,13 +267,13 @@ static void do_action_tcp_connect(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
     replica_tcp_pair* ret;
 
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
+    HASH_FIND(hh, ev_mgr->replica_tcp_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
         ret = malloc(sizeof(replica_tcp_pair));
         memset(ret,0,sizeof(replica_tcp_pair));
         ret->key = clt_id;
         ret->accepted = 0;
-        HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(view_stamp), ret);
+        HASH_ADD(hh, ev_mgr->replica_tcp_map, key, sizeof(view_stamp), ret);
     }
 
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -298,13 +298,13 @@ static void do_action_udp_connect(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
     replica_tcp_pair* ret;
 
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
+    HASH_FIND(hh, ev_mgr->replica_tcp_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
         ret = malloc(sizeof(replica_tcp_pair));
         memset(ret,0,sizeof(replica_tcp_pair));
         ret->key = clt_id;
         ret->accepted = 0;
-        HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(view_stamp), ret);
+        HASH_ADD(hh, ev_mgr->replica_tcp_map, key, sizeof(view_stamp), ret);
     }
     if(ret->p_s==NULL){
         int *fd = (int*)malloc(sizeof(int));
@@ -326,7 +326,7 @@ static void do_action_udp_connect(view_stamp clt_id,void* arg){
 static void do_action_send(request_record *retrieve_data,void* arg){
     event_manager* ev_mgr = arg;
     replica_tcp_pair* ret = NULL;
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
+    HASH_FIND(hh, ev_mgr->replica_tcp_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
 
     if(NULL==ret){
         goto do_action_send_exit;
@@ -397,7 +397,7 @@ static int check_point_condtion(void* arg)
     if (g_checkpoint_flag == NO_DISCONNECTED)
     	ret = 0;
     else if (g_checkpoint_flag == DISCONNECTED_REQUEST) {
-        unsigned int connection_num = HASH_COUNT(ev_mgr->replica_hash_map);
+        unsigned int connection_num = HASH_COUNT(ev_mgr->replica_tcp_map);
         if (connection_num == 0)
         {
 	    fprintf(stderr, "flag is set to be DISCONNECTED_APPROVE\n");
@@ -420,7 +420,7 @@ static int get_mapping_fd(view_stamp clt_id, void*arg)
 
     replica_tcp_pair* ret;
 
-    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
+    HASH_FIND(hh, ev_mgr->replica_tcp_map, &clt_id, sizeof(view_stamp), ret);
     return ret->s_p;
 }
 
@@ -539,7 +539,7 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     ev_mgr->replica_tcp_map = NULL;
     ev_mgr->leader_udp_map = NULL;
 
-    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fds,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
+    ev_mgr->con_node = system_initialize(node_id,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");

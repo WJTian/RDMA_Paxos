@@ -170,6 +170,7 @@ int do_decision(output_peer_t* output_peers, int group_size){
 			output_peers[i].node_id,
 			output_peers[i].hash,
 			output_peers[i].hash_index);
+		fflush(fp);
 		if (0L == output_peers[i].hash){
 			zero_count++;
 		}

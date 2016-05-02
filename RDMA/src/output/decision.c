@@ -135,6 +135,7 @@ int do_restore(output_peer_t* output_peers, int group_size, uint64_t aim_hash){
 			send_restore_cmd(output_peers[i].node_id,output_peers[i].hash_index);
 		}		
 	}
+	return 0;
 }
 // do_decision will open a file to log the decision
 // make dicision and trigger a restore cmd to guard.py

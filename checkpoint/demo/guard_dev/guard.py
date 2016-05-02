@@ -256,7 +256,7 @@ def send_reconnect_cmd():
 		reply = sock.recv(MAX_RECV)
 		print "[send_reconnect_cmd] %s, reply: %s"%(RECONNECT_CMD,reply)	
 	except Exception as e:
-		print "[send_reconnect_cmd] send %s failed at unix socket"%(RECONNECT_CMD)
+		print "[send_reconnect_cmd] send %s failed at unix socket, err:%s"%(RECONNECT_CMD,str(e))
 		pass
 
 def send_disconnect_cmd():
@@ -271,7 +271,7 @@ def send_disconnect_cmd():
 		reply = sock.recv(MAX_RECV)
 		print "[send_disconnect_cmd] %s, reply: %s"%(DISCONNECT_CMD,reply)	
 	except Exception as e:
-		print "[send_disconnect_cmd] send %s failed at unix socket"%(DISCONNECT_CMD)
+		print "[send_disconnect_cmd] send %s failed at unix socket, err:%s"%(DISCONNECT_CMD,str(e))
 		pass
 
 def generate_fd_index(tmpDir,AIM_PID):
@@ -329,8 +329,11 @@ def pack_ext_res(tmpDir,AIM_PID):
 	# pack EXT_RES_DIR
 	ext_res_dir_inner = os.path.join(tmpDir,EXT_RES_DIR_INNER)
 	try:
-		shutil.copytree(EXT_RES_DIR,ext_res_dir_inner)
-		print "[pack_ext_res] %s has been stored into %s"%(EXT_RES_DIR,ext_res_dir_inner)
+		if os.path.exists(EXT_RES_DIR):
+			shutil.copytree(EXT_RES_DIR,ext_res_dir_inner)
+			print "[pack_ext_res] %s has been stored into %s"%(EXT_RES_DIR,ext_res_dir_inner)
+		else:
+			print "[pack_ext_res] %s has not been existed. skipped."%(EXT_RES_DIR)			
 		return 0
 	except Exception as e:
 		print "[pack_ext_res] %s failed to be stored. error:%s"%(EXT_RES_DIR,str(e))
@@ -346,7 +349,6 @@ def unpack_ext_res(tmpDir):
 	# read fd_index.txt
 	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
 	fd_dir = os.path.join(tmpDir,FD_STORE_DIR_INNER)
-	os.mkdir(fd_dir)
 	fd_index=None
 	try:
 		fd_index = open(fd_index_path,"rb")
@@ -514,7 +516,8 @@ class InnerHandler(SocketServer.BaseRequestHandler):
 	def handle(self):
 		print "[inner] Client is connected."
 		recv_size=4096
-		request = self.request.recv(recv_size).strip()
+		request = self.request.recv(recv_size)
+		request = request.strip('\n')
 		print "[inner] recv:#%s#"%(request)
 		parts = request.split()
 		if 3!=len(parts):

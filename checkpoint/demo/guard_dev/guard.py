@@ -293,7 +293,8 @@ def generate_fd_index(tmpDir,AIM_PID):
 		for item in dirs:
 			abs_path = os.path.join(proc_fd_dir,item)
 			orig_path = os.readlink(abs_path)
-			mode = os.stat(orig_path).st_mode # though os.stat will follow the softlink
+			# can not use orig_path, since some are not standard file name. However, os.stat will follow the softlink
+			mode = os.stat(abs_path).st_mode 
 			if stat.S_ISREG(mode):
 				print "[generate_fd_index] found fd files:%s"%(orig_path)
 				fd_index.write("%s\n"%(orig_path))

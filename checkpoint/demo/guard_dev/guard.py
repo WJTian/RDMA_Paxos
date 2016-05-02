@@ -559,7 +559,7 @@ def start_outer(args):
 	srv.serve_forever()
 
 def timer_checkpoint():
-	print "[timer checkpoint] checkpoint will be done at this machine".
+	print "[timer checkpoint] checkpoint will be done at this machine"
 	inner_checkpoint(SELF_ID,-1)
 	print "[inner] check point will be done in every %d seconds."%(CK_TIMER_SECS)
 	threading.Timer(CK_TIMER_SECS, timer_checkpoint).start()

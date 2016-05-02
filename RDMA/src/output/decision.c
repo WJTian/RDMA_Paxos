@@ -124,7 +124,7 @@ int do_restore(output_peer_t* output_peers, int group_size, uint64_t aim_hash){
 		return -1;
 	}
 	for (int i=0; i< group_size; i++){
-		debug_log("[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld, aim_hash: 0x%"PRIx64"\n",
+		debug_log("[do_restore] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld, aim_hash: 0x%"PRIx64"\n",
 			output_peers[i].leader_id,
 			output_peers[i].node_id,
 			output_peers[i].hash,
@@ -169,6 +169,11 @@ int do_decision(output_peer_t* output_peers, int group_size){
 		if (1==i){
 			output_peers[i].hash=0x55aa;
 		}
+		debug_log("[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld\n",
+			output_peers[i].leader_id,
+			output_peers[i].node_id,
+			output_peers[i].hash,
+			output_peers[i].hash_index);
 		fprintf(fp,"[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld\n",
 			output_peers[i].leader_id,
 			output_peers[i].node_id,
@@ -181,6 +186,7 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	}
 	if (zero_count){
 		fprintf(fp,"[do_decision] failed to make decision since one of hash is 0\n");
+		debug_log("[do_decision] failed to make decision since one of hash is 0\n");
 		// 0 means do nothing.
 		return 0;
 	}
@@ -194,11 +200,13 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	con_num = count_hash(output_peers,group_size,master_hash);
 	if (con_num == group_size){ // D.0 all hash are the same.
 		fprintf(fp,"[do_decision] D.0 All hash are the same (Nothing to do)\n");
+		debug_log("[do_decision] D.0 All hash are the same (Nothing to do)\n");
 		ret=0;
 		return ret;
 	}
 	if (con_num >= threshold ){ // // D.1 H(header) == H(major).
 		fprintf(fp,"[do_decision] D.1 Minority need redo.\n");
+		debug_log("[do_decision] D.1 Minority need redo.\n");
 		ret=1;
 		do_restore(output_peers,group_size,master_hash);
 		return ret;	
@@ -207,12 +215,14 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	major_cnt = major_count_hash(output_peers, group_size, &major_hash); 
 	if (major_cnt >= threshold){ // D2. H(header) != H(major).
     	fprintf(fp,"[do_decision] D.2 Master and Minority need redo. and major_hash is 0x%"PRIx64"\n",major_hash);
+    	debug_log("[do_decision] D.2 Master and Minority need redo. and major_hash is 0x%"PRIx64"\n",major_hash);
 		ret=2;
 		do_restore(output_peers,group_size,major_hash);
 		return ret;
     }
 	// consensus failed
 	fprintf(fp,"[hash_consensus] D.3 All nodes need redo.\n");
+	debug_log("[hash_consensus] D.3 All nodes need redo.\n");
 	ret = 3;
 	do_restore(output_peers,group_size,0);
 	fflush(fp);

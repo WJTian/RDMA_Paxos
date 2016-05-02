@@ -43,6 +43,8 @@ typedef struct output_peer_t
 	uint32_t node_id;
 	uint64_t hash;
 	long hash_index;
+	int fd; // fd is needed because I will print the content of hash_buff if hash is different.
+	// but currently, only leader's fd is avaiable.
 }output_peer_t;
 
 

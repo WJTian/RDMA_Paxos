@@ -184,7 +184,7 @@ int store_output(int fd, const unsigned char *buff, ssize_t buff_size)
 		debug_log("[store_output] fd:%d, copied %d bytes into hash_buffer[%d/%d], then push_size:%d\n",fd,actual_size,output_handler->hash_buffer_curr,HASH_BUFFER_SIZE,push_size);
 		if (0==left_space){ // The hash buffer is full.
 			show_buff(output_handler->hash_buffer,HASH_BUFFER_SIZE);
-			debug_log("[store_output] fd:%d, previous hash:0x%"PRIx64", buff will be used for crc64. buff:#%s#\n",fd,output_handler->hash,tmpBuff);
+			debug_log("[store_output] fd:%d, previous hash:0x%"PRIx64", buff will be used for crc64.\n",fd,output_handler->hash);
 			output_handler->hash = crc64(output_handler->hash,output_handler->hash_buffer,HASH_BUFFER_SIZE);
 			// curr is clear, since new hash is generated.
 			output_handler->hash_buffer_curr=0;

@@ -81,9 +81,19 @@ BIND_PORT=12345
 
 #disconnect cmd
 DISCONNECT_CMD="disconnect\n"
-DISCONNECT_SOCK="/tmp/checkpoint.server.sock"
+RECONNECT_CMD="reconnect\n"
+LIBEVENT_SOCK="/tmp/checkpoint.server.sock"
 # The unix socket I am listening for accepting internal request.
 UNIX_SOCK="/tmp/guard.sock"
+
+# all db files should be stored into this dir
+EXT_RES_DIR="/data/store/"
+# EXT_RES_DIR will be copied into this dir, and then be packed
+EXT_RES_DIR_INNER="ext_res_dir/" 
+FD_INDEX_NAME="fd_index.txt"
+FD_STORE_DIR_INNER="fd_dir/"
+#update pid every 5 s
+TIMER_SECS=5.0
 
 DEF_INDEX="""<!DOCTYPE html>
 <html>
@@ -233,6 +243,21 @@ def getNextBaseName():
 	next_id = max_id+1
 	return os.path.join(STORE_BASE,"checkpoint_%d"%(next_id))
 
+def send_reconnect_cmd():
+	"""
+	Send a reconnect cmd to a unix socket, which is listened by libevent thread in RDMA code.
+	"""
+	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+	try:
+		MAX_RECV=512
+		sock.connect(LIBEVENT_SOCK)
+		sock.send(RECONNECT_CMD)
+		reply = sock.recv(MAX_RECV)
+		print "[send_reconnect_cmd] %s, reply: %s"%(RECONNECT_CMD,reply)	
+	except Exception as e:
+		print "[send_reconnect_cmd] send %s failed at unix socket"%(RECONNECT_CMD)
+		pass
+
 def send_disconnect_cmd():
 	"""
 	Send a disconnect cmd to a unix socket, which is listened by libevent thread in RDMA code.
@@ -240,13 +265,112 @@ def send_disconnect_cmd():
 	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 	try:
 		MAX_RECV=512
-		sock.connect(DISCONNECT_SOCK)
+		sock.connect(LIBEVENT_SOCK)
 		sock.send(DISCONNECT_CMD)
 		reply = sock.recv(MAX_RECV)
 		print "[send_disconnect_cmd] %s, reply: %s"%(DISCONNECT_CMD,reply)	
 	except Exception as e:
 		print "[send_disconnect_cmd] send %s failed at unix socket"%(DISCONNECT_CMD)
 		pass
+
+def generate_fd_index(tmpDir,AIM_PID):
+	"""
+	1. to generate a fd_index.txt,
+	"""
+	print "[generate_fd_index] tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
+	fd_index=None
+	try:
+		fd_index = open(fd_index_path,"wb");
+	except Exception as e:
+		print "[generate_fd_index] open %s failed."%(fd_index_path)
+		return -1
+	if None != fd_index: 
+		proc_fd_dir = "/proc/%d/fd"%(AIM_PID)
+		print "[generate_fd_index] reading %s"%(proc_fd_dir)
+		dirs = os.listdir(proc_fd_dir)
+		for item in dirs:
+			abs_path = os.path.join(proc_fd_dir,item)
+			orig_path = os.readlink(abs_path)
+			mode = os.stat(orig_path).st_mode # though os.stat will follow the softlink
+			if stat.S_ISREG(mode):
+				print "[generate_fd_index] found fd files:%s"%(orig_path)
+				fd_index.write("%s\n"%(orig_path))
+		print "[generate_fd_index] fd_index will be closed"
+		fd_index.close()
+		return 0
+	else:
+		return -1
+
+def pack_ext_res(tmpDir,AIM_PID):
+	"""
+	Two steps:
+	1. to read a fd_index.txt, then pack all opened fd but regular files. into dir fd_dir/.
+	2. pack a directory define as EXT_RES_DIR, such as /data into ext_res_dir/.
+	"""
+	print "[pack_ext_res] tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+	# read fd_index.txt
+	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
+	fd_dir = os.path.join(tmpDir,FD_STORE_DIR_INNER)
+	os.mkdir(fd_dir)
+	fd_index=None
+	try:
+		fd_index = open(fd_index_path,"rb")
+		lines = fd_index.readlines()
+		for item in lines:
+			item = item.strip('\n')
+			shutil.copy(item, fd_dir)
+			print "[pack_ext_res] %s has been stored into %s."%(item,fd_dir)
+	except Exception as e:
+		print "[pack_ext_res] open file %s failed."%(fd_index_path)
+		return -1
+	# pack EXT_RES_DIR
+	ext_res_dir_inner = os.path.join(tmpDir,EXT_RES_DIR_INNER)
+	try:
+		shutil.copytree(EXT_RES_DIR,ext_res_dir_inner)
+		print "[pack_ext_res] %s has been stored into %s"%(EXT_RES_DIR,ext_res_dir_inner)
+		return 0
+	except Exception as e:
+		print "[pack_ext_res] %s failed to be stored. error:%s"%(EXT_RES_DIR,str(e))
+		return -1
+
+def unpack_ext_res(tmpDir):
+	"""
+	Two steps:
+	1. to read fd_index.txt, then replace files from fd_dir/ to abslute path.
+	2. to replace /data from ext_res_dir/
+	"""
+	print "[unpack_ext_res] tmpDir: %s"%(tmpDir)
+	# read fd_index.txt
+	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
+	fd_dir = os.path.join(tmpDir,FD_STORE_DIR_INNER)
+	os.mkdir(fd_dir)
+	fd_index=None
+	try:
+		fd_index = open(fd_index_path,"rb")
+		lines = fd_index.readlines()
+		for item in lines:
+			item = item.strip('\n')
+			base_name = os.path.basename(item)
+			src_name = os.path.join(fd_dir,base_name)
+			try:
+				shutil.copyfile(src_name,item)
+				print "[unpack_ext_res] %s has been copy to %s."%(src_name,item)
+			except Exception as e:
+				print "[unpack_ext_res] %s failed to restore."%(item)
+				pass
+	except Exception as e:
+		print "[pack_ext_res] open file %s failed."%(fd_index_path)
+		return -1
+	# replace
+	ext_res_dir_inner = os.path.join(tmpDir,EXT_RES_DIR_INNER)
+	# remove it first, then move
+	try:
+		shutil.rmtree(EXT_RES_DIR)
+		shutil.move(ext_res_dir_inner,EXT_RES_DIR)
+	except Exception as e:
+		print "[unpack_ext_res] replace error."
+		return -1
 
 def inner_checkpoint(node_id,round_id):
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
@@ -259,14 +383,26 @@ def inner_checkpoint(node_id,round_id):
 	if tmpDir:
 		send_disconnect_cmd()
 		print "[inner_checkpoint] sleep 1 seconds to wait for disconnect"
-		time.sleep(1)	
+		time.sleep(1)
+		reset_pid()
+		# before criu dump, fd_index.txt should be generated and be stored into tmpDir.
+		# return 0 means ok
+		retcode = generate_fd_index(tmpDir,AIM_PID)
+		if retcode:
+			print "[inner_checkpoint] generate_fd_index called but failed.\n"
+			sys.stdout.flush()
+			return
 		#remove --shell-job
-		cmd="/sbin/criu dump -v4 --leave-running -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
+		#remove --leave-running
+		cmd="/sbin/criu dump -v4 -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		retcode = subprocess.call(cmd,shell=True)
 		if retcode:
 			print "[inner_checkpoint] criu dump error, please cat /tmp/criu.dump.log"
 		else:
+			# Currently, the target has been closed by criu.
+			# pack all external resource, such as files, into tmpDir.
+			pack_ext_res(tmpDir,AIM_PID);
 			zipBaseName = getNextBaseName() # without extName
 			zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
 			print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
@@ -274,6 +410,10 @@ def inner_checkpoint(node_id,round_id):
 			#rsync zip file to others
 			print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
 			subprocess.call(RSYNC_CMD,shell=True)
+			# restore RDMA 
+			inner_restore(node_id,round_id)
+			# send reconnect cmd
+			send_reconnect_cmd()
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
 	sys.stdout.flush()
@@ -293,7 +433,6 @@ def reset_pid():
 			print "[reset_pid] AIM_PID has been updated as %d"%(AIM_PID)
 	except Exception as e:
 		print "[reset_pid] Failed to get pid by cmd: %s"%(GETPID_CMD)
-	TIMER_SECS=5.0
 	threading.Timer(TIMER_SECS,reset_pid).start()
 	
 def inner_restore(node_id,round_id):
@@ -302,18 +441,21 @@ def inner_restore(node_id,round_id):
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"
 	print "[inner_restore] find current checkpoint file %s"%(currZip)
-        try:
-                tmpDir = tempfile.mkdtemp()
-        except Exception as e:
-                pass
-        if tmpDir and os.path.exists(currZip):
-		reset_pid()
-		# kill 
-		subprocess.call(KILL_CMD,shell=True)
-		time.sleep(1) # wait for kill
+    try:
+        tmpDir = tempfile.mkdtemp()
+    except Exception as e:
+            pass
+    if tmpDir and os.path.exists(currZip):
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
+		# kill
+		reset_pid() 
+		subprocess.call(KILL_CMD,shell=True)
+		# wait for kill
+		time.sleep(1)
+		# Before criu restore, fd files and external files need to be replaced.
+		unpack_ext_res(tmpDir)
 		# remove --shell-job
 		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
@@ -322,8 +464,10 @@ def inner_restore(node_id,round_id):
 			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
 		shutil.rmtree(tmpDir)
 		reset_pid()	
-	sys.stdout.flush()
-	return 
+		sys.stdout.flush()
+		return
+	else
+		print "[inner_restore] unable to to restore since %s is missing."%(currZip) 
 
 def inner_service(cmd,node_id,round_id):
 	urls=[
@@ -409,8 +553,6 @@ def start_inner(args):
 			print "[inner] ERR file %s cannot be removed."%(UNIX_SOCK)
 			print "[inner] Interface failed."
 			return
-	#update pid every 5 s
-	TIMER_SECS=5.0
 	threading.Timer(TIMER_SECS, reset_pid).start()
 	print "[inner] Interface(%s) will start."%(UNIX_SOCK)
 	srv = SocketServer.UnixStreamServer(UNIX_SOCK,InnerHandler)	

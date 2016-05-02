@@ -74,6 +74,10 @@ def processBench(config, bench):
     testscript.write('#! /bin/bash\n')
 
     testscript.write('bash db_delete.sh\n')
+    if testname == "mongodb":
+    	testscript.write('ssh ' + local_host + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n' +
+        'ssh ' + remote_hostone + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n' +
+        'ssh ' + remote_hosttwo + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n')
 
     if server_count == 3:
         testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +

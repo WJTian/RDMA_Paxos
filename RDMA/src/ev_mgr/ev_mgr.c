@@ -306,20 +306,15 @@ static void do_action_udp_connect(view_stamp clt_id,void* arg){
         ret->accepted = 0;
         HASH_ADD(hh, ev_mgr->replica_tcp_map, key, sizeof(view_stamp), ret);
     }
-    if(ret->p_s==NULL){
-        int *fd = (int*)malloc(sizeof(int));
-        *fd = socket(AF_INET, SOCK_DGRAM, 0);
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
 
-        listAddNodeTail(ev_mgr->excluded_fd, (void*)fd);
+    connect(fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
 
-        connect(*fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
+    ret->p_s = fd;
+    SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection with server application.\n");
+    set_blocking(fd, 0);
 
-        ret->p_s = fd;
-        SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection with server application.\n");
-        set_blocking(*fd, 0);
-        
-        keep_alive(*fd);
-    }
+    keep_alive(fd);
     return;
 }
 

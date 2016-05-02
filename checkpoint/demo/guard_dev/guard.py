@@ -69,7 +69,7 @@ STORE_UPPER="/tmp"
 # kill cmd 
 AIM_NAME="redis-server"
 KILL_CMD="pkill -9 %s"%(AIM_NAME)
-GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
+GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v ssh | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
 # RSYNC cmd
 RSYNC_CMD=""
 # user name

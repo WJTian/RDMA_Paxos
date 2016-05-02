@@ -2,7 +2,7 @@
 #define DEBUG_H
 
 #include <stdio.h>
-#define DEBUG_LOG
+
 #ifdef DEBUG_LOG
 #define debug_log(args...) do { \
     struct timeval tv; \

@@ -13,8 +13,6 @@
 
 volatile int g_checkpoint_flag = NO_DISCONNECTED;
 
-static pthread_t check_point_thread; // a global pid
-
 static int fdcomp(void *ptr, void *key)
 {
     return (*(int*)ptr == *(int*)key) ? 1 : 0;

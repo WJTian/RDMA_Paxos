@@ -101,7 +101,7 @@ void* call_send_restore_cmd_start(void* argv){
 }
 // will send restore cmd to the guard.py
 int send_restore_cmd(uint32_t node_id,long hash_index){
-	debug_log("[send_restore_cmd] id:%u, hash_index:%ld\n",id, hash_index);
+	debug_log("[send_restore_cmd] id:%u, hash_index:%ld\n",node_id, hash_index);
 	// It is better to start a thread to send the cmd, so that this thread will not be blocked.
 	output_peer_t *para = (output_peer_t*)malloc(sizeof(output_peer_t));
 	para->node_id = node_id;

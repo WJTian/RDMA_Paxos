@@ -36,51 +36,61 @@ int mgr_on_process_init(event_manager* ev_mgr)
 	return rc;
 }
 
-void leader_on_accept(int fd, event_manager* ev_mgr)
+void mgr_on_accept(int fd, event_manager* ev_mgr)
 {
-    if (pthread_self() == check_point_thread)
+
+    if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
         return;
 
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
-        leader_socket_pair* new_conn = malloc(sizeof(leader_socket_pair));
-        memset(new_conn,0,sizeof(leader_socket_pair));
+        leader_tcp_pair* new_conn = malloc(sizeof(leader_tcp_pair));
+        memset(new_conn,0,sizeof(leader_tcp_pair));
 
         new_conn->key = fd;
         HASH_ADD_INT(ev_mgr->leader_hash_map, key, new_conn);
 
-        rsm_op(ev_mgr->con_node, 0, NULL, P_CONNECT, &new_conn->vs);
+        rsm_op(ev_mgr->con_node, 0, NULL, P_TCP_CONNECT, &new_conn->vs);
+    } else {
+        request_record* retrieve_data = NULL;
+        size_t data_size;
+    
+        while (retrieve_data == NULL){
+            retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
+        }
+        replica_tcp_pair* ret = NULL;
+        HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
+        ret->s_p = fd;
+        ret->accepted = 1;
     }
 
     return;
 }
 
-int *replica_on_accept(event_manager* ev_mgr)
+void mgr_on_recvfrom(event_manager* ev_mgr, void* buf, ssize_t ret, struct sockaddr* src_addr)
 {
     if (pthread_self() == check_point_thread)
-    {
-	//fprintf(stderr, "libevent thread is called, self id is %d\n", pthread_self());
-        return NULL;
-    }
-    //fprintf(stderr, "other thread is called, self id is %d\n", pthread_self());
-    
+        return;
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
-    if (ev_mgr->node_id != leader_id)
+    if (ev_mgr->node_id == leader_id)
     {
-	request_record* retrieve_data = NULL;
-        size_t data_size;
-	
-        while (retrieve_data == NULL){
-            retrieve_record(ev_mgr->db_ptr, sizeof(db_key_type), &ev_mgr->cur_rec, &data_size, (void**)&retrieve_data);
+        leader_udp_pair *s;
+        char tmp[14];
+        strncpy(tmp, src_addr->sa_data, 14);
+        HASH_FIND_STR(ev_mgr->udp_hash_map, tmp, s);
+        if (s == NULL)
+        {
+            leader_udp_pair* new_conn = malloc(sizeof(leader_udp_pair));
+            memset(new_conn,0,sizeof(leader_udp_pair));
+            strncpy(new_conn->sa_data, src_addr->sa_data, 14);
+            HASH_ADD_STR(ev_mgr->udp_hash_map, sa_data, new_conn);
+            rsm_op(ev_mgr->con_node, 0, NULL, P_UDP_CONNECT, &new_conn->vs);
+            rsm_op(ev_mgr->con_node, ret, buf, P_SEND, &new_conn->vs);
+        } else {
+            rsm_op(ev_mgr->con_node, ret, buf, P_SEND, &s->vs);
         }
-	replica_socket_pair* ret = NULL;
-        HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
-        ret->accepted = 1;
-        return &ret->s_p;
     }
-
-    return NULL;
 }
 
 void mgr_on_close(int fd, event_manager* ev_mgr)
@@ -92,7 +102,7 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
     {
-        leader_socket_pair* ret = NULL;
+        leader_tcp_pair* ret = NULL;
         HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, ret);
         if (ret == NULL)
             goto mgr_on_close_exit;
@@ -149,7 +159,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
             if (-1 != hash_index){
                 // to do output proposal with hash value at this hash_index
                 // [finished] I need learn the function of this socket_pair
-                leader_socket_pair* socket_pair = NULL;
+                leader_tcp_pair* socket_pair = NULL;
                 HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
                 // [TODO] I remove this const to make it easy to pass compile, I will add it back.
                 dare_log_entry_t *log_entry_ptr = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
@@ -208,7 +218,7 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
         fstat(fd, &sb);
         if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0 && listSearchKey(ev_mgr->excluded_fd, &fd) == NULL)
         {
-            leader_socket_pair* socket_pair = NULL;
+            leader_tcp_pair* socket_pair = NULL;
             HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
             rsm_op(ev_mgr->con_node, ret, buf, P_SEND, &socket_pair->vs);
         }
@@ -218,7 +228,7 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
 
 static void do_action_close(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
-    replica_socket_pair* ret = NULL;
+    replica_tcp_pair* ret = NULL;
     HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
         goto do_action_close_exit;
@@ -238,14 +248,14 @@ do_action_close_exit:
     return;
 }
 
-static void do_action_connect(view_stamp clt_id,void* arg){
+static void do_action_tcp_connect(view_stamp clt_id,void* arg){
     event_manager* ev_mgr = arg;
-    replica_socket_pair* ret;
+    replica_tcp_pair* ret;
 
     HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
-        ret = malloc(sizeof(replica_socket_pair));
-        memset(ret,0,sizeof(replica_socket_pair));
+        ret = malloc(sizeof(replica_tcp_pair));
+        memset(ret,0,sizeof(replica_tcp_pair));
         ret->key = clt_id;
         ret->accepted = 0;
         HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(view_stamp), ret);
@@ -271,9 +281,38 @@ static void do_action_connect(view_stamp clt_id,void* arg){
     return;
 }
 
+static void do_action_udp_connect(view_stamp clt_id,void* arg){
+    event_manager* ev_mgr = arg;
+    replica_tcp_pair* ret;
+
+    HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
+    if(NULL==ret){
+        ret = malloc(sizeof(replica_tcp_pair));
+        memset(ret,0,sizeof(replica_tcp_pair));
+        ret->key = clt_id;
+        ret->accepted = 0;
+        HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(view_stamp), ret);
+    }
+    if(ret->p_s==NULL){
+        int *fd = (int*)malloc(sizeof(int));
+        *fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+        listAddNodeTail(ev_mgr->excluded_fd, (void*)fd);
+
+        connect(*fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
+
+        ret->p_s = fd;
+        SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection with server application.\n");
+        set_blocking(*fd, 0);
+        
+        keep_alive(*fd);
+    }
+    return;
+}
+
 static void do_action_send(request_record *retrieve_data,void* arg){
     event_manager* ev_mgr = arg;
-    replica_socket_pair* ret = NULL;
+    replica_tcp_pair* ret = NULL;
     HASH_FIND(hh, ev_mgr->replica_hash_map, &retrieve_data->clt_id, sizeof(view_stamp), ret);
 
     if(NULL==ret){
@@ -370,7 +409,7 @@ static int get_mapping_fd(view_stamp clt_id, void*arg)
 {
     event_manager* ev_mgr = arg;
 
-    replica_socket_pair* ret;
+    replica_tcp_pair* ret;
 
     HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
     return ret->s_p;
@@ -390,11 +429,17 @@ static void update_state(db_key_type index,void* arg){
         output = ev_mgr->req_log_file;
     }
     switch(retrieve_data->type){
-        case P_CONNECT:
+        case P_TCP_CONNECT:
             if(output!=NULL){
                 fprintf(output,"Operation: Connects.\n");
             }
-            do_action_connect(retrieve_data->clt_id,arg);
+            do_action_tcp_connect(retrieve_data->clt_id,arg);
+            break;
+        case P_UDP_CONNECT:
+            if(output!=NULL){
+                fprintf(output,"Operation: Connects.\n");
+            }
+            do_action_udp_connect(retrieve_data->clt_id,arg);
             break;
         case P_SEND:
             if(output!=NULL){
@@ -480,17 +525,10 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
         err_log("EVENT MANAGER : Cannot Set Up The Database.\n");
         goto mgr_exit_error;
     }
-    //ev_mgr->excluded_fd = listCreate(); /* On error, NULL is returned. Otherwise the pointer to the new list. */
-    //ev_mgr->excluded_fd->match = &comp;
 
-    /*if (ev_mgr->excluded_fd == NULL)
-    {
-        err_log("EVENT MANAGER : Cannot create excluded descriptor list.\n");
-        goto mgr_exit_error;
-    }*/
-
-    ev_mgr->leader_hash_map = NULL;
-    ev_mgr->replica_hash_map = NULL;
+    ev_mgr->leader_tcp_map = NULL;
+    ev_mgr->replica_tcp_map = NULL;
+    ev_mgr->leader_udp_map = NULL;
 
     ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
 
@@ -500,8 +538,6 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     }
 
     mgr_on_process_init(ev_mgr);
-    /*if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0)
-    	fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");*/
 
 	return ev_mgr;
 

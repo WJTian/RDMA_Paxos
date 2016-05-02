@@ -134,29 +134,20 @@ extern "C" pid_t fork(void)
 
 extern "C" int accept4(int socket, struct sockaddr *address, socklen_t *address_len, int flags)
 {
-        typedef int (*orig_accept4_type)(int, sockaddr *, socklen_t *,int);
-        static orig_accept4_type orig_accept4;
-        if (!orig_accept4)
-                orig_accept4 = (orig_accept4_type) dlsym(RTLD_NEXT, "accept4");
-	int ret;
-	if (ev_mgr == NULL)
+	typedef int (*orig_accept4_type)(int, sockaddr *, socklen_t *,int);
+	static orig_accept4_type orig_accept4;
+	if (!orig_accept4)
+		orig_accept4 = (orig_accept4_type) dlsym(RTLD_NEXT, "accept4");
+
+	int ret = orig_accept4(socket, address, address_len, flags);
+
+	if (ret >= 0)
 	{
-		ret = orig_accept4(socket, address, address_len, flags);
-	} else {
-		int *s_p = replica_on_accept(ev_mgr);
-		ret = orig_accept4(socket, address, address_len, flags);
-		
-		if (ret >= 0)
+		struct stat sb;
+		fstat(ret, &sb);
+		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
 		{
-			struct stat sb;
-			fstat(ret, &sb);
-			if ((sb.st_mode & S_IFMT) == S_IFSOCK)
-			{
-				if (s_p != NULL)
-					*s_p = ret;
-				else
-					leader_on_accept(ret, ev_mgr);
-			}
+			mgr_on_accept(ret, ev_mgr);
 		}
 	}
 
@@ -169,25 +160,20 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 	static orig_accept_type orig_accept;
 	if (!orig_accept)
 		orig_accept = (orig_accept_type) dlsym(RTLD_NEXT, "accept");
-	int ret;
-	if (ev_mgr == NULL)
-	{
-		ret = orig_accept(socket, address, address_len);
-	} else {
-		int *s_p = replica_on_accept(ev_mgr);
-		ret = orig_accept(socket, address, address_len);
 
-		if (ret >= 0)
+	/* Previously I think connect() can only successfully return only when the accept() on the server side is called.
+	   That's why replica_on_accept() was invoked before orig_accept().
+	   Howevrer, actually there is no relationship between connect() and accept() */
+
+	int ret = orig_accept(socket, address, address_len);
+
+	if (ret >= 0)
+	{
+		struct stat sb;
+		fstat(ret, &sb);
+		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
 		{
-			struct stat sb;
-			fstat(ret, &sb);
-			if ((sb.st_mode & S_IFMT) == S_IFSOCK)
-			{
-				if (s_p != NULL)
-					*s_p = ret;
-				else
-					leader_on_accept(ret, ev_mgr);
-			}
+			mgr_on_accept(ret, ev_mgr);
 		}
 	}
 
@@ -253,6 +239,7 @@ extern "C" ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct
 		orig_recvfrom = (orig_recvfrom_type) dlsym(RTLD_NEXT, "recvfrom");
 	
 	ssize_t ret = orig_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+	mgr_on_recvfrom(ev_mgr, buf, ret, src_addr);
 	return ret;
 
 }

@@ -10,9 +10,9 @@ Description: Output hash value implementation.
 #include "adlist.h"
 #include "../util/common-header.h"
 
-#define CHECK_PERIOD 10
-#define CHECK_GOBACK 5
-#define HASH_BUFFER_SIZE 1024
+#define CHECK_PERIOD 5
+#define CHECK_GOBACK 2
+#define HASH_BUFFER_SIZE 16
 // since max tcp port number will not exceed this number
 #define MAX_FD_SIZE 65536 
 

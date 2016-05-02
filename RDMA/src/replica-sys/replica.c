@@ -179,17 +179,17 @@ int disconnect_zookeeper()
     return rc;
 }
 
-int launch_replica_thread(node* my_node, list* excluded_fd)
+int launch_replica_thread(node* my_node, list* excluded_fds, list* excluded_threads)
 {
-        static int *zoo_fd;
+    static int *zoo_fd;
 	int rc = 0;
 	my_node->cur_view.view_id = 1;
-    	my_node->cur_view.req_id = 0;
-        my_node->cur_view.leader_id = UNKNOWN_LEADER;
-	
-    	zoo_fd = (int*)malloc(sizeof(int));
-    	start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port);
-    	listAddNodeTail(excluded_fd, (void*)zoo_fd);
+    my_node->cur_view.req_id = 0;
+    my_node->cur_view.leader_id = UNKNOWN_LEADER;
+
+    zoo_fd = (int*)malloc(sizeof(int));
+    start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port);
+    listAddNodeTail(excluded_fds, (void*)zoo_fd);
 	if (my_node->consensus_comp == NULL)
 	{
 	    fprintf(stderr, "init consensus comp is wrong\n");
@@ -197,10 +197,13 @@ int launch_replica_thread(node* my_node, list* excluded_fd)
 	}
 	if (pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp) != 0)
 		rc = 1;
-	return rc;
+    pthread_t *replica_thread = (pthread_t*)malloc(sizeof(pthread_t));
+    *replica_thread = my_node->rep_thread
+    listAddNodeTail(excluded_threads, (void*)replica_thread);
+    return rc;
 }
 
-int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
+int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
 
     int flag = 1;
 
@@ -215,15 +218,6 @@ int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void 
         err_log("CONSENSUS MODULE : Cannot init dare\n");
         goto initialize_node_exit;
     }
-
-    //my_node->cur_view.view_id = 1;
-    //my_node->cur_view.req_id = 0;
-    /*my_node->cur_view.leader_id = UNKNOWN_LEADER;
-
-    int *zoo_fd = (int*)malloc(sizeof(int));
-    start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port);
-    
-    listAddNodeTail(excluded_fd, (void*)zoo_fd);*/
 
     int build_log_ret = 0;
     if(log_path==NULL){
@@ -260,8 +254,6 @@ int initialize_node(node* my_node,list* excluded_fd, const char* log_path, void 
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
     }
-
-    //pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp);
     
     flag = 0;
 initialize_node_exit:
@@ -284,7 +276,7 @@ uint32_t get_group_size(node* my_node)
     return my_node->group_size;
 }
 
-node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), int(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
+node* system_initialize(node_id_t node_id,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), int(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
@@ -301,7 +293,7 @@ node* system_initialize(node_id_t node_id,list* excluded_fd,const char* config_p
     }
 
 
-    if(initialize_node(my_node,excluded_fd,log_path,user_cb,up_check,up_get,db_ptr,arg)){
+    if(initialize_node(my_node,log_path,user_cb,up_check,up_get,db_ptr,arg)){
         err_log("CONSENSUS MODULE : Network Layer Initialization Failed.\n");
         goto exit_error;
     }

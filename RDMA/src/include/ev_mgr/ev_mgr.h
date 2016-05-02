@@ -24,7 +24,7 @@ typedef struct leader_udp_pair_t{
 
 typedef struct replica_tcp_pair_t{
     view_stamp key;
-    int* p_s;
+    int p_s;
     int s_p;
     int accepted;
     UT_hash_handle hh;
@@ -53,7 +53,8 @@ typedef struct event_manager_t{
 
     db_key_type cur_rec;
 
-    list *excluded_fd;
+    list *excluded_fds;
+    list *excluded_threads;
 
     struct node_t* con_node;
 

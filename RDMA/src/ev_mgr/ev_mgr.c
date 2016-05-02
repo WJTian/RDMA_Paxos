@@ -15,30 +15,52 @@ volatile int g_checkpoint_flag = NO_DISCONNECTED;
 
 static pthread_t check_point_thread; // a global pid
 
-int comp(void *ptr, void *key)
+static int fdcomp(void *ptr, void *key)
 {
     return (*(int*)ptr == *(int*)key) ? 1 : 0;
 }
 
-int mgr_on_process_init(event_manager* ev_mgr)
+static int pidcomp(void *ptr, void *key)
 {
-	if (ev_mgr->excluded_fd != NULL)
-		listRelease(ev_mgr->excluded_fd);
+    return (*(pthread_t*)ptr == *(pthread_t*)key) ? 1 : 0;
+}
 
-	ev_mgr->excluded_fd = NULL;
-	ev_mgr->excluded_fd = listCreate();
-	ev_mgr->excluded_fd->match = &comp;
-	int rc = launch_replica_thread(ev_mgr->con_node, ev_mgr->excluded_fd);
-	if (rc != 0 )
-		fprintf(stderr, "EVENT MANAGER : Cannot create replica thread\n");
-	if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0) 
-		fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
-	return rc;
+static int internal_threads(list *excluded_threads, pthread_t pid)
+{
+    return (listSearchKey(excluded_threads, (void*)&pid) != NULL) ? 1 : 0;
+}
+
+int mgr_on_process_init(event_manager* ev_mgr)
+{   
+    if (ev_mgr->excluded_fds != NULL)
+        listRelease(ev_mgr->excluded_fds);
+    ev_mgr->excluded_fds = NULL;
+    ev_mgr->excluded_fds = listCreate();
+    ev_mgr->excluded_fds->match = &fdcomp;
+
+    if (ev_mgr->excluded_threads != NULL)
+        listRelease(ev_mgr->excluded_threads);
+    ev_mgr->excluded_threads = NULL;
+    ev_mgr->excluded_threads = listCreate();
+    ev_mgr->excluded_threads->match = &pidcomp;
+
+    int rc = launch_replica_thread(ev_mgr->con_node, ev_mgr->excluded_fds, ev_mgr->excluded_threads);
+    if (rc != 0 )
+        fprintf(stderr, "EVENT MANAGER : Cannot create replica thread\n");
+    
+    pthread_t check_point_thread;
+    if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0) 
+        fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
+
+    pthread_t *ck_thread = (pthread_t*)malloc(sizeof(pthread_t));
+    *ck_thread = check_point_thread;
+    listAddNodeTail(ev_mgr->excluded_threads, (void*)ck_thread);
+
+    return rc;
 }
 
 void mgr_on_accept(int fd, event_manager* ev_mgr)
 {
-
     if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
         return;
 
@@ -70,7 +92,7 @@ void mgr_on_accept(int fd, event_manager* ev_mgr)
 
 void mgr_on_recvfrom(event_manager* ev_mgr, void* buf, ssize_t ret, struct sockaddr* src_addr)
 {
-    if (pthread_self() == check_point_thread)
+    if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
         return;
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
     if (ev_mgr->node_id == leader_id)
@@ -95,7 +117,7 @@ void mgr_on_recvfrom(event_manager* ev_mgr, void* buf, ssize_t ret, struct socka
 
 void mgr_on_close(int fd, event_manager* ev_mgr)
 {
-    if (pthread_self() == check_point_thread)
+    if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
         return;
     
     del_output(fd);
@@ -140,10 +162,10 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
 // I do not agree with size_t ret, please change this name.
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
-    if (pthread_self() == check_point_thread)
+    if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
         return;
     
-    if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fd, (void*)&fd) == NULL)
+    if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fds, (void*)&fd) == NULL)
     {
         int store_output_rc = 0;
         store_output_rc = store_output(fd, buf, ret);
@@ -208,7 +230,7 @@ static int keep_alive(int fd) {
 }
 
 void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
-    if (pthread_self() == check_point_thread)
+    if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
         return;
     
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
@@ -216,7 +238,7 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
     {
         struct stat sb;
         fstat(fd, &sb);
-        if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0 && listSearchKey(ev_mgr->excluded_fd, &fd) == NULL)
+        if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0 && listSearchKey(ev_mgr->excluded_fds, &fd) == NULL)
         {
             leader_tcp_pair* socket_pair = NULL;
             HASH_FIND_INT(ev_mgr->leader_hash_map, &fd, socket_pair);
@@ -232,17 +254,10 @@ static void do_action_close(view_stamp clt_id,void* arg){
     HASH_FIND(hh, ev_mgr->replica_hash_map, &clt_id, sizeof(view_stamp), ret);
     if(NULL==ret){
         goto do_action_close_exit;
-    }else{      
-        if(ret->p_s!=NULL){
-            if (close(*ret->p_s))
+    }else{
+        if (close(ret->p_s))
                 fprintf(stderr, "failed to close socket\n");
-
-            listNode *node = listSearchKey(ev_mgr->excluded_fd, (void*)ret->p_s);
-            if (node == NULL)
-                fprintf(stderr, "failed to find the matching key\n");
-            listDelNode(ev_mgr->excluded_fd, node);
-            HASH_DEL(ev_mgr->replica_hash_map, ret);
-        }
+        HASH_DEL(ev_mgr->replica_hash_map, ret);
     }
 do_action_close_exit:
     return;
@@ -260,24 +275,22 @@ static void do_action_tcp_connect(view_stamp clt_id,void* arg){
         ret->accepted = 0;
         HASH_ADD(hh, ev_mgr->replica_hash_map, key, sizeof(view_stamp), ret);
     }
-    if(ret->p_s==NULL){
-        int *fd = (int*)malloc(sizeof(int));
-        *fd = socket(AF_INET, SOCK_STREAM, 0);
 
-        listAddNodeTail(ev_mgr->excluded_fd, (void*)fd);
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
 
-        connect(*fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
+    connect(fd, (struct sockaddr*)&ev_mgr->sys_addr.s_addr,ev_mgr->sys_addr.s_sock_len);
 
-        ret->p_s = fd;
-        SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection with server application.\n");
-        set_blocking(*fd, 0);
-        
-        int enable = 1;
-        if(setsockopt(*fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
-            printf("TCP_NODELAY SETTING ERROR!\n");
-        keep_alive(*fd);
-        while (!ret->accepted);
-    }
+    ret->p_s = fd;
+
+    SYS_LOG(ev_mgr, "EVENT MANAGER sets up socket connection with server application.\n");
+    set_blocking(fd, 0);
+
+    int enable = 1;
+    if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
+        printf("TCP_NODELAY SETTING ERROR!\n");
+    keep_alive(fd);
+    while (!ret->accepted);
+
     return;
 }
 
@@ -318,12 +331,8 @@ static void do_action_send(request_record *retrieve_data,void* arg){
     if(NULL==ret){
         goto do_action_send_exit;
     }else{
-        if(NULL==ret->p_s){
-            goto do_action_send_exit;
-        }else{
-            SYS_LOG(ev_mgr, "Event manager sends request to the real server.\n");
-            write(*ret->p_s, retrieve_data->data, retrieve_data->data_size - 1);
-        }
+        SYS_LOG(ev_mgr, "Event manager sends request to the real server.\n");
+        write(ret->p_s, retrieve_data->data, retrieve_data->data_size - 1);
     }
 do_action_send_exit:
     return;
@@ -530,7 +539,7 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     ev_mgr->replica_tcp_map = NULL;
     ev_mgr->leader_udp_map = NULL;
 
-    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fd,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
+    ev_mgr->con_node = system_initialize(node_id,ev_mgr->excluded_fds,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");

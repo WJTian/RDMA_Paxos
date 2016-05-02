@@ -165,6 +165,10 @@ int do_decision(output_peer_t* output_peers, int group_size){
 	// If one of hash is 0, just return.
 	int zero_count = 0;
 	for (i = 0; i < group_size; i++){
+		// force hash is different to debug.
+		if (1==i){
+			output_peers[i].hash=0x55aa;
+		}
 		fprintf(fp,"[do_decision] leader_id:%u, node_id: %u, hashval: 0x%"PRIx64" hash_index:%ld\n",
 			output_peers[i].leader_id,
 			output_peers[i].node_id,

@@ -145,7 +145,7 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
     struct timespec wait_for_reply;
     wait_for_reply.tv_sec = 0;
     wait_for_reply.tv_nsec = 1000 * 20;
-    nanosleep(wait_for_reply, NULL); // because rsm_op() returns when it reaches quorum, so this value might be zero
+    nanosleep(&wait_for_reply, NULL); // because rsm_op() returns when it reaches quorum, so this value might be zero
     
     output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
     for (int i=0;i<group_size;i++){

@@ -141,7 +141,7 @@ extern "C" int accept4(int socket, struct sockaddr *address, socklen_t *address_
 
 	int ret = orig_accept4(socket, address, address_len, flags);
 
-	if (ret >= 0)
+	if (ret >= 0 && ev_mgr != NULL)
 	{
 		struct stat sb;
 		fstat(ret, &sb);
@@ -167,7 +167,7 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 
 	int ret = orig_accept(socket, address, address_len);
 
-	if (ret >= 0)
+	if (ret >= 0 && ev_mgr != NULL)
 	{
 		struct stat sb;
 		fstat(ret, &sb);

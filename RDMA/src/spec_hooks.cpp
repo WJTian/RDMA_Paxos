@@ -248,7 +248,7 @@ extern "C" ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags)
                 orig_recvmsg = (orig_recvmsg_type) dlsym(RTLD_NEXT, "recvmsg");
         ssize_t ret = orig_recvmsg(sockfd, msg, flags);
         if (ret > 0 && ev_mgr != NULL)
-        	server_side_on_read(ev_mgr, msg->msg_iov[0].iov_base, msg->msg_iov[0].iov_len, sockfd);
+        	server_side_on_read(ev_mgr, msg->msg_iov[0].iov_base, ret, sockfd);
         
         return ret;
 

@@ -131,8 +131,8 @@ void mgr_on_close(int fd, event_manager* ev_mgr)
         HASH_DEL(ev_mgr->leader_tcp_map, ret);
 
         rsm_op(ev_mgr->con_node, 0, NULL, P_CLOSE, &close_vs);
-	// nop is only for sending the close() consensus result to the replicas.
-	rsm_op(ev_mgr->con_node, 0, NULL, P_NOP, NULL);
+        // nop is only for sending the close() consensus result to the replicas.
+        rsm_op(ev_mgr->con_node, 0, NULL, P_NOP, NULL);
     }
 mgr_on_close_exit:
     return;

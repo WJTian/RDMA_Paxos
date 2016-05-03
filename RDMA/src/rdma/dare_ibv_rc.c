@@ -333,7 +333,6 @@ static int rc_prerequisite()
     
     /* Allocate a RC protection domain */
     IBDEV->rc_pd = ibv_alloc_pd(IBDEV->ib_dev_context);
-    fprintf(stderr, "pd is register at %p\n", (void *)IBDEV->rc_pd);
     if (NULL == IBDEV->rc_pd) {
         error_return(1, log_fp, "Cannot create PD\n");
     }

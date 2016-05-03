@@ -10,19 +10,25 @@ typedef uint32_t nid_t;
 
 struct event_manager_t;
 
-typedef struct leader_socket_pair_t{
+typedef struct leader_tcp_pair_t{
     int key;
     view_stamp vs;
     UT_hash_handle hh;
-}leader_socket_pair;
+}leader_tcp_pair;
 
-typedef struct replica_socket_pair_t{
+typedef struct leader_udp_pair_t{
+    char sa_data[14];
+    view_stamp vs;
+    UT_hash_handle hh;
+}leader_udp_pair;
+
+typedef struct replica_tcp_pair_t{
     view_stamp key;
-    int* p_s;
+    int p_s;
     int s_p;
     int accepted;
     UT_hash_handle hh;
-}replica_socket_pair;
+}replica_tcp_pair;
 
 typedef struct mgr_address_t{
     struct sockaddr_in s_addr;
@@ -31,8 +37,9 @@ typedef struct mgr_address_t{
 
 typedef struct event_manager_t{
     nid_t node_id;
-    leader_socket_pair* leader_hash_map;
-    replica_socket_pair* replica_hash_map;
+    leader_tcp_pair* leader_tcp_map;
+    replica_tcp_pair* replica_tcp_map;
+    leader_udp_pair* leader_udp_map;
     mgr_address sys_addr;
 
     // log option
@@ -46,7 +53,8 @@ typedef struct event_manager_t{
 
     db_key_type cur_rec;
 
-    list *excluded_fd;
+    list *excluded_fds;
+    list *excluded_threads;
 
     struct node_t* con_node;
 
@@ -58,11 +66,12 @@ typedef struct event_manager_t{
 }event_manager;
 
 typedef enum mgr_action_t{
-    P_CONNECT=1,
+    P_TCP_CONNECT=1,
     P_SEND=2,
     P_CLOSE=3,
     P_OUTPUT=4,
     P_NOP=5,
+    P_UDP_CONNECT=6,
 }mgr_action;
 
 typedef enum check_point_state_t{

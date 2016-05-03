@@ -207,9 +207,7 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 	ssize_t ret = orig_recv(sockfd, buf, len, flags);
 
 	if (ret > 0 && ev_mgr != NULL)
-	{
 		server_side_on_read(ev_mgr, buf, ret, sockfd);
-	}
 
 	return ret;
 }
@@ -223,9 +221,7 @@ extern "C" ssize_t read(int fd, void *buf, size_t count)
 	ssize_t ret = orig_read(fd, buf, count);
 
 	if (ret > 0 && ev_mgr != NULL)
-	{
 		server_side_on_read(ev_mgr, buf, ret, fd);
-	}
 
 	return ret;
 }
@@ -251,11 +247,12 @@ extern "C" ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags)
         if (!orig_recvmsg)
                 orig_recvmsg = (orig_recvmsg_type) dlsym(RTLD_NEXT, "recvmsg");
         ssize_t ret = orig_recvmsg(sockfd, msg, flags);
+        if (ret > 0 && ev_mgr != NULL)
+        	server_side_on_read(ev_mgr, msg->msg_iov[0].iov_base, msg->msg_iov[0].iov_len, sockfd);
+        
         return ret;
 
 }
-
-
 
 extern "C" ssize_t write(int fd, const void *buf, size_t count)
 {

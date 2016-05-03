@@ -146,7 +146,7 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
     output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
     for (int i=0;i<group_size;i++){
         peer_array[i].leader_id = leader_id;
-        peer_array[i].node_id = i; 
+        peer_array[i].node_id = log_entry_ptr->ack[i].node_id; // because rsm_op() returns when it reaches quorum, so this value might be zero
         peer_array[i].hash = log_entry_ptr->ack[i].hash;
         peer_array[i].hash_index = hash_index;
         peer_array[i].fd = -1;

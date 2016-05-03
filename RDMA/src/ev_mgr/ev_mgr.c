@@ -142,16 +142,20 @@ mgr_on_close_exit:
 // This function will malloc space for output_peer array.
 // please remember free it after use.
 output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
-    // [finished] I need cheng's help to implement this function.
+    struct timespec wait_for_reply;
+    wait_for_reply.tv_sec = 0;
+    wait_for_reply.tv_nsec = 1000 * 20;
+    nanosleep(wait_for_reply, NULL); // because rsm_op() returns when it reaches quorum, so this value might be zero
+    
     output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
     for (int i=0;i<group_size;i++){
         peer_array[i].leader_id = leader_id;
-        peer_array[i].node_id = log_entry_ptr->ack[i].node_id; // because rsm_op() returns when it reaches quorum, so this value might be zero
+        peer_array[i].node_id = log_entry_ptr->ack[i].node_id;
         peer_array[i].hash = log_entry_ptr->ack[i].hash;
         peer_array[i].hash_index = hash_index;
         peer_array[i].fd = -1;
     }
-    // Add information of the leader.
+
     peer_array[leader_id].hash = get_output_hash(fd, hash_index);
     // I can get leader's fd only.
     peer_array[leader_id].fd = fd;

@@ -16,11 +16,14 @@ struct dare_server_input_t {
     peer *peer_pool;
     uint32_t group_size;
     uint32_t server_idx;
+    view* cur_view;
 };
 typedef struct dare_server_input_t dare_server_input_t;
 
 struct dare_server_data_t {
     dare_server_input_t *input;
+    
+    view* cur_view;
     
     server_config_t config; // configuration 
     

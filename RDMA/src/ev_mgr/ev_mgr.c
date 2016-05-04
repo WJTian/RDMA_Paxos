@@ -28,6 +28,18 @@ static int internal_threads(list *excluded_threads, pthread_t pid)
     return (listSearchKey(excluded_threads, (void*)&pid) != NULL) ? 1 : 0;
 }
 
+uint32_t get_id()
+{
+    struct ifreq ifr;
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    ifr.ifr_addr.sa_family = AF_INET;
+
+    strncpy(ifr.ifr_name, "eth4", IFNAMSIZ-1);
+    ioctl(fd, SIOCGIFADDR, &ifr);
+    close(fd);
+    //printf("%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));  
+}
+
 int mgr_on_process_init(event_manager* ev_mgr)
 {   
     if (ev_mgr->excluded_fds != NULL)
@@ -42,7 +54,7 @@ int mgr_on_process_init(event_manager* ev_mgr)
     ev_mgr->excluded_threads = listCreate();
     ev_mgr->excluded_threads->match = &pidcomp;
 
-    int rc = launch_replica_thread(ev_mgr->con_node, ev_mgr->excluded_fds, ev_mgr->excluded_threads);
+    int rc = launch_threads(ev_mgr->con_node, ev_mgr->excluded_fds, ev_mgr->excluded_threads);
     if (rc != 0 )
         fprintf(stderr, "EVENT MANAGER : Cannot create replica thread\n");
     

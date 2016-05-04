@@ -9,6 +9,7 @@
 
 struct cm_con_data_t {
 	rem_mem_t log_mr;
+	uint32_t type;
 	uint32_t idx;
 	uint16_t lid;
 	uint8_t gid[16];

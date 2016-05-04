@@ -65,6 +65,8 @@ def processBench(config, bench):
     testname,port_str = bench.split(" ")
     if testname == "mysql":
         hook_program = "sudo " + hook_program
+    if testname == "clamav":
+        client_repeats=config.get(bench,'CLIENT_REPEATS')
 
     if testname == "mongodb":
         hook_program = hook_program.replace("nodes.local.cfg","nodes.mongodb.cfg")
@@ -140,8 +142,12 @@ def processBench(config, bench):
     testscript.write('echo "Skip benchmark and kill all servers and restart again"\n')
     testscript.write('else\n')
     if testname == "clamav" or testname == "mediatomb":
+        if testname == "clamav":
+            testscript.write('for i in {1..' + client_repeats + '}\n' + 'do\n')
         for client_input_part in client_input_list:
-            testscript.write('timeout 240 ' + client_program + ' ' + client_input_part +'  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
+            testscript.write('timeout 240 ' + client_program + ' ' + client_input_part +'  >>& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')
+        if testname == "clamav":
+            testscript.write('done\n')
     else:
         for client_input_part in client_input_list:
             testscript.write('timeout 240 ssh ' + test_host + '  "' + client_program + ' ' + client_input_part +'"  >& ' + config_file.replace(".cfg","") + '_' +  git_ver + '_' + time_stamp + '/' + testname + '_output_$1' +  '\n' + 'sleep 10 \n')

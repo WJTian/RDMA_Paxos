@@ -37,8 +37,9 @@ uint32_t get_id()
     strncpy(ifr.ifr_name, "eth4", IFNAMSIZ-1);
     ioctl(fd, SIOCGIFADDR, &ifr);
     close(fd);
-    char *ip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
-    uint32_t id = atoi(ip[9]);
+    char *ip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
+    ip = ip + 8;
+    uint32_t id = atoi(ip);
     return id;
 }
 

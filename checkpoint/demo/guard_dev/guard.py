@@ -287,6 +287,8 @@ def generate_fd_index(tmpDir,AIM_PID):
 	1. to generate a fd_index.txt,
 	"""
 	print "[generate_fd_index] tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+	if -1 == AIM_PID:
+		return -1
 	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
 	fd_index=None
 	try:

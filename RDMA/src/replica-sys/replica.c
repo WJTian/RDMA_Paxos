@@ -203,7 +203,7 @@ int launch_threads(node* my_node, list* excluded_fds, list* excluded_threads)
     my_node->cur_view.leader_id = UNKNOWN_LEADER;
 
     zoo_fd = (int*)malloc(sizeof(int));
-    start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port);
+    start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port, my_node->node_id);
     listAddNodeTail(excluded_fds, (void*)zoo_fd);
 
     if (init_rdma)

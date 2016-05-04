@@ -1,6 +1,9 @@
+#define _GNU_SOURCE
 #ifndef COMMON_STRUCTURE_H
 #define COMMON_STRUCTURE_H
 #include <stdint.h>
+#include <sys/socket.h>
+#include <dlfcn.h>
 
 typedef uint32_t node_id_t;
 typedef uint32_t req_id_t;

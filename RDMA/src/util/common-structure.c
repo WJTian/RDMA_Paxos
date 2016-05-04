@@ -56,7 +56,7 @@ int original_close(int fildes)
 
 int original_accept(int socket, struct sockaddr *address, socklen_t *address_len)
 {
-    typedef int (*orig_accept_type)(int, sockaddr *, socklen_t *);
+    typedef int (*orig_accept_type)(int, struct sockaddr *, socklen_t *);
     static orig_accept_type orig_accept;
     if (!orig_accept)
         orig_accept = (orig_accept_type) dlsym(RTLD_NEXT, "accept");

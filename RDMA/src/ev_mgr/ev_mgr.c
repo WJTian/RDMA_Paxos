@@ -37,7 +37,9 @@ uint32_t get_id()
     strncpy(ifr.ifr_name, "eth4", IFNAMSIZ-1);
     ioctl(fd, SIOCGIFADDR, &ifr);
     close(fd);
-    //printf("%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));  
+    char *ip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
+    uint32_t id = atoi(ip[9]);
+    return id;
 }
 
 int mgr_on_process_init(event_manager* ev_mgr)
@@ -154,12 +156,12 @@ mgr_on_close_exit:
 // please remember free it after use.
 output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
     
-    /* because rsm_op() returns when it reaches quorum
+    // because rsm_op() returns when it reaches quorum
     
     struct timespec wait_for_reply;
     wait_for_reply.tv_sec = 0;
     wait_for_reply.tv_nsec = 1000 * 5;
-    nanosleep(&wait_for_reply, NULL); */
+    nanosleep(&wait_for_reply, NULL);
     
     output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
     for (int i=0;i<group_size;i++){
@@ -375,7 +377,7 @@ int disconnct_inner(){
             // do thing.  
         }
         if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
-	    fprintf(stderr,"disconnect is approved\n");
+            fprintf(stderr,"disconnect is approved\n");
             int ret = rc_disconnect_server();
             if (-1==ret){ // error
                 return ret;
@@ -411,11 +413,11 @@ static int check_point_condtion(void* arg)
         unsigned int connection_num = HASH_COUNT(ev_mgr->replica_tcp_map);
         if (connection_num == 0)
         {
-	    fprintf(stderr, "flag is set to be DISCONNECTED_APPROVE\n");
+            fprintf(stderr, "flag is set to be DISCONNECTED_APPROVE\n");
             g_checkpoint_flag = DISCONNECTED_APPROVE;
             ret = 1;
         } else {
-	    fprintf(stderr, "flag is set to be NO_DISCONNECTED\n");
+            fprintf(stderr, "flag is set to be NO_DISCONNECTED\n");
             g_checkpoint_flag = NO_DISCONNECTED;
             ret = 0;
         }
@@ -473,11 +475,11 @@ static void update_state(db_key_type index,void* arg){
             }
             do_action_close(retrieve_data->clt_id,arg);
             break;
-	case P_NOP:
-	    if(output!=NULL){
+        case P_NOP:
+            if(output!=NULL){
                 fprintf(output,"Operation: NOP.\n");
             }
-	    break; // nop is only for sending the close() consensus result to the replcias
+            break; // nop is only for sending the close() consensus result to the replicas
         default:
             break;
     }

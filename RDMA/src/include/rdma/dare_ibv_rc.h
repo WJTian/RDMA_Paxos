@@ -16,6 +16,10 @@ struct cm_con_data_t {
 	uint32_t qpns;
 }__attribute__ ((packed));
 
+typedef enum communication_type_t{
+    JOIN=1,
+}communication_type;
+
 int rc_init();
 void rc_free();
 

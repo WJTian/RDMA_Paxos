@@ -88,8 +88,8 @@ LIBEVENT_SOCK="/tmp/checkpoint.server.sock"
 UNIX_SOCK="/tmp/guard.sock"
 
 # all db files should be stored into this dir
-EXT_RES_DIR_PARENT="/data/"
-EXT_RES_DIR="/data/store/"
+EXT_RES_DIR_PARENT="home/jingyu/RDMA_Paxos/apps/ssdb"
+EXT_RES_DIR="/home/jingyu/RDMA_Paxos/apps/ssdb/var"
 # EXT_RES_DIR will be copied into this dir, and then be packed
 EXT_RES_DIR_INNER="ext_res_dir/" 
 FD_INDEX_NAME="fd_index.txt"

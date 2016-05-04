@@ -3,7 +3,7 @@
 set -x
 SCRIPT_DIR=$(dirname $0)
 cd $SCRIPT_DIR
-aim_name="redis-server"
+aim_name="ssdb-server"
 
 if [ ! -z "$1" ]; then
 	aim_name=$1

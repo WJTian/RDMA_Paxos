@@ -152,6 +152,8 @@ def init():
 		argv = sys.argv
 		SELF_ID=int(argv[1])
 		AIM_NAME=argv[2]
+		KILL_CMD="pkill -9 %s"%(AIM_NAME)
+		GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v ssh | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
 		reset_pid()
 		RDMA_CFG=argv[3]
 	except Exception as e:
@@ -160,6 +162,7 @@ def init():
 	print "The guard has got self_id:%d, aim_pid:%d, and cfg file: %s"%(SELF_ID,AIM_PID,RDMA_CFG)
 	if os.path.exists(STORE_BASE):
 		shutil.rmtree(STORE_BASE)
+		os.mkdir(STORE_BASE)
 	else: # dir is not existed, we need create one
 		os.mkdir(STORE_BASE)
 	cfg_init(RDMA_CFG)

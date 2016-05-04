@@ -11,6 +11,9 @@
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 
+#include <sys/ioctl.h>
+#include <net/if.h>
+
 volatile int g_checkpoint_flag = NO_DISCONNECTED;
 
 static int fdcomp(void *ptr, void *key)

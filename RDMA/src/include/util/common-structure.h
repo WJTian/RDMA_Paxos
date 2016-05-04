@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #ifndef COMMON_STRUCTURE_H
 #define COMMON_STRUCTURE_H
 #include <stdint.h>

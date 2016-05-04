@@ -120,11 +120,7 @@ static void rc_cq_destroy(dare_ib_ep_t* ep)
 }
 
 void* event(void* arg)
-{
-    pthread_t *cm = (pthread_t*)malloc(sizeof(pthread_t));
-    *cm = pthread_self();
-    listAddNodeTail(SRV_DATA->excluded_threads, (void*)cm);
-    
+{   
     struct sockaddr_in clientaddr;
     socklen_t clientlen = sizeof(clientaddr);
 

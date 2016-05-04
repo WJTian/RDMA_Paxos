@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "../include/util/common-structure.h"
 
 int view_stamp_comp(view_stamp* op1,view_stamp* op2){

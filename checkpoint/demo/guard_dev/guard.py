@@ -410,7 +410,7 @@ def inner_checkpoint(node_id,round_id):
 			return
 		#remove --shell-job
 		#remove --leave-running
-		cmd="/sbin/criu dump -v4 -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
+		cmd="/sbin/criu dump -v4 --file-locks -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		retcode = subprocess.call(cmd,shell=True)
 		if retcode:
@@ -471,7 +471,7 @@ def inner_restore(node_id,round_id):
 		# Before criu restore, fd files and external files need to be replaced.
 		unpack_ext_res(tmpDir)
 		# remove --shell-job
-		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
+		cmd="/sbin/criu restore -v4 --file-locks -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
 		retcode = subprocess.call(cmd,shell=True)
 		if retcode :

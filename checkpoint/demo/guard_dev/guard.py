@@ -67,7 +67,7 @@ SELF_ID=-1
 STORE_BASE="/tmp/checkpoint_store"
 STORE_UPPER="/tmp"
 # kill cmd 
-AIM_NAME="ssdb-server"
+AIM_NAME="redis-server"
 KILL_CMD="pkill -9 %s"%(AIM_NAME)
 GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v ssh | grep -v sh | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
 # RSYNC cmd

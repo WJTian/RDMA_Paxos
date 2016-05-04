@@ -346,7 +346,7 @@ def pack_ext_res(tmpDir,AIM_PID):
 			print "[pack_ext_res] %s has not been existed. skipped."%(EXT_RES_DIR)			
 		return 0
 	except Exception as e:
-		print "[pack_ext_res] %s failed to be stored. error:%s"%(EXT_RES_DIR,str(e))
+		print "[pack_ext_res] %s failed to be stored.%s"%(EXT_RES_DIR,str(e))
 		return -1
 
 def unpack_ext_res(tmpDir):

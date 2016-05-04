@@ -454,6 +454,7 @@ def reset_pid():
 def inner_restore(node_id,round_id):
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
 	# mkdir dump
+	sys.stdout.flush()
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"
 	print "[inner_restore] find current checkpoint file %s"%(currZip)

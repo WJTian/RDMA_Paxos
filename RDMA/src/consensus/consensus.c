@@ -23,7 +23,7 @@ typedef enum request_type_t{
 }request_type;
 
 typedef struct consensus_component_t{ con_role my_role;
-    uint32_t node_id;
+    uint32_t* node_id;
 
     uint32_t group_size;
     struct node_t* my_node;
@@ -48,7 +48,7 @@ typedef struct consensus_component_t{ con_role my_role;
     void* up_para;
 }consensus_component;
 
-consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
+consensus_component* init_consensus_comp(struct node_t* node,uint32_t* node_id,FILE* log,int sys_log,int stat_log,const char* db_name,void* db_ptr,int group_size,
     view* cur_view,view_stamp* to_commit,view_stamp* highest_committed_vs,view_stamp* highest,user_cb u_cb,up_check uc,up_get ug,void* arg){
     consensus_component* comp = (consensus_component*)malloc(sizeof(consensus_component));
     memset(comp,0,sizeof(consensus_component));
@@ -62,7 +62,7 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,FI
         comp->node_id = node_id;
         comp->group_size = group_size;
         comp->cur_view = cur_view;
-        if(comp->cur_view->leader_id == comp->node_id){
+        if(comp->cur_view->leader_id == *comp->node_id){
             comp->my_role = LEADER;
         }else{
             comp->my_role = SECONDARY;
@@ -183,7 +183,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
             memcpy(entry->data,data,data_size);
 
         entry->msg_vs = next;
-        entry->node_id = comp->node_id;
+        entry->node_id = *comp->node_id;
         entry->type = type;
         entry->clt_id.view_id = (type != P_NOP)?clt_id->view_id:0;
         entry->clt_id.req_id = (type != P_NOP)?clt_id->req_id:0;
@@ -201,7 +201,8 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
         *dummy = DUMMY_END;
 
-        uint64_t bit_map = (1<<comp->node_id);
+        uint32_t my_id = *comp->node_id;
+        uint64_t bit_map = (1<<my_id);
         rem_mem_t rm;
         memset(&rm, 0, sizeof(rem_mem_t));
         for (i = 0; i < comp->group_size; i++) {
@@ -266,7 +267,7 @@ void *handle_accept_req(void* arg)
 
     for (;;)
     {
-        if (comp->cur_view->leader_id != comp->node_id)
+        if (comp->cur_view->leader_id != *comp->node_id)
         {
             if (comp->uc(comp->up_para))
                 return NULL;
@@ -313,8 +314,10 @@ void *handle_accept_req(void* arg)
                     SRV_DATA->log->tail = SRV_DATA->log->end;
                     SRV_DATA->log->end += log_entry_len(entry);
                     uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
-                    accept_ack* reply = (accept_ack*)((char*)entry + ACCEPT_ACK_SIZE * comp->node_id);
-                    reply->node_id = comp->node_id;
+
+                    uint32_t my_id = *comp->node_id;
+                    accept_ack* reply = (accept_ack*)((char*)entry + ACCEPT_ACK_SIZE * my_id);
+                    reply->node_id = my_id;
                     reply->msg_vs.view_id = entry->msg_vs.view_id;
                     reply->msg_vs.req_id = entry->msg_vs.req_id;
                     

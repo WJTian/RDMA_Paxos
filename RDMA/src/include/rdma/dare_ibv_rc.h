@@ -18,6 +18,7 @@ struct cm_con_data_t {
 
 typedef enum communication_type_t{
     JOIN=1,
+    DESTROY=2,
 }communication_type;
 
 int rc_init();

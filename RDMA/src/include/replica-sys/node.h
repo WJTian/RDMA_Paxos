@@ -14,7 +14,7 @@ typedef int (*up_check)(void* arg);
 typedef int (*up_get)(view_stamp clt_id,void* arg);
 
 typedef struct node_t{
-	node_id_t node_id;
+	node_id_t* node_id;
 	int stat_log;
 	int sys_log;
 	view cur_view;

@@ -31,7 +31,7 @@ static int internal_threads(list *excluded_threads, pthread_t pid)
     return (listSearchKey(excluded_threads, (void*)&pid) != NULL) ? 1 : 0;
 }
 
-uint32_t get_id()
+static uint32_t get_id()
 {
     struct ifreq ifr;
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -42,7 +42,7 @@ uint32_t get_id()
     close(fd);
     char *ip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
     ip = ip + 8;
-    uint32_t id = atoi(ip);
+    uint32_t id = atoi(ip) - 1;
     return id;
 }
 
@@ -60,10 +60,16 @@ int mgr_on_process_init(event_manager* ev_mgr)
     ev_mgr->excluded_threads = listCreate();
     ev_mgr->excluded_threads->match = &pidcomp;
 
-    int rc = launch_threads(ev_mgr->con_node, ev_mgr->excluded_fds, ev_mgr->excluded_threads);
+    launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
+
+    int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )
-        fprintf(stderr, "EVENT MANAGER : Cannot create replica thread\n");
-    
+        fprintf(stderr, "EVENT MANAGER : Cannot start rdma\n");
+
+    rc = launch_replica_thread(ev_mgr->con_node, ev_mgr->excluded_threads);
+    if (rc != 0 )
+        fprintf(stderr, "EVENT MANAGER : Cannot launch replica thread\n");
+
     pthread_t check_point_thread;
     if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0) 
         fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
@@ -361,6 +367,8 @@ do_action_send_exit:
 // 0 is ok
 // reconnect works for cheng
 int reconnect_inner(){
+    ev_mgr->node_id = get_id();
+    zoo_and_
 	return 0;
 }
 
@@ -556,7 +564,7 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     ev_mgr->replica_tcp_map = NULL;
     ev_mgr->leader_udp_map = NULL;
 
-    ev_mgr->con_node = system_initialize(node_id,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
+    ev_mgr->con_node = system_initialize(&ev_mgr->node_id,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");

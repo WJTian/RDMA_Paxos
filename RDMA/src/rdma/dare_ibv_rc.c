@@ -82,7 +82,7 @@ static void rc_memory_dereg()
     
     if (NULL != IBDEV->lcl_mr) {
         rc = ibv_dereg_mr(IBDEV->lcl_mr);
-	//fprintf(stderr, "deregistering addr %p\n", IBDEV->lcl_mr->addr);
+        //fprintf(stderr, "deregistering addr %p\n", IBDEV->lcl_mr->addr);
         if (0 != rc) {
             rdma_error(log_fp, "Cannot deregister memory");
         }
@@ -126,7 +126,7 @@ void* event(void* arg)
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (bind(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->config.idx].peer_address, sizeof(struct sockaddr_in)) < 0)
+    if (bind(sockfd, (struct sockaddr *)SRV_DATA->config.servers[*SRV_DATA->config.idx].peer_address, sizeof(struct sockaddr_in)) < 0)
         perror ("ERROR on binding");
     listen(sockfd, 5);
 
@@ -148,6 +148,12 @@ void* event(void* arg)
                 prepare_qp(ntohl(remote_data.idx), &local_data);
                 original_write(newsockfd, &local_data, sizeof(struct cm_con_data_t));
                 connect_qp(remote_data, ntohl(remote_data.idx));
+            } else if (ntohl(remote_data.type) == DESTROY)
+            {
+                uint32_t idx = ntohl(remote_data.idx);
+                dare_ib_ep_t* ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
+                rc_qp_destroy(ep);    
+                rc_cq_destroy(ep);
             }
 
             if (original_close(newsockfd))
@@ -504,7 +510,16 @@ static int poll_cq(int max_wc, struct ibv_cq *cq)
 
 int rc_disconnect_server()
 {
-    //fprintf(stderr, "entering disconnect, group size is %"PRIu32"\n", SRV_DATA->config.cid.size);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+        fprintf(stderr, "ERROR opening socket\n");
+
+    connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->cur_view->leader_id].peer_address, sizeof(struct sockaddr_in));
+    struct cm_con_data_t local_data;
+    local_data.type = htonl(DESTROY);
+    local_data.idx = htonl(SRV_DATA->config.idx);
+    original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));   
+    
     uint32_t i;
     dare_ib_ep_t *ep;
     for (i = 0; i < SRV_DATA->config.cid.size; i++)

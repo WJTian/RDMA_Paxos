@@ -15,7 +15,7 @@ struct dare_server_input_t {
     FILE *log;
     peer *peer_pool;
     uint32_t group_size;
-    uint32_t server_idx;
+    uint32_t *server_idx;
     view* cur_view;
 };
 typedef struct dare_server_input_t dare_server_input_t;

@@ -307,5 +307,6 @@ ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags)
 	static orig_sendmsg_type orig_sendmsg;
 	if (!orig_sendmsg)
 		orig_sendmsg = (orig_sendmsg_type) dlsym(RTLD_NEXT, "sendmsg");
-	ssize_t ret = orig_sendmsg(sockfd, msg, flags);	
+	ssize_t ret = orig_sendmsg(sockfd, msg, flags);
+	return ret;
 }

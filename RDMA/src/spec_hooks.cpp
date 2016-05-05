@@ -240,6 +240,7 @@ extern "C" ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct
 
 }
 
+// ClamAV
 extern "C" ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags)
 {
         typedef ssize_t (*orig_recvmsg_type)(int, struct msghdr *, int);
@@ -293,10 +294,18 @@ extern "C" ssize_t send(int fd, const void *buf, size_t len, int flags)
 		struct stat sb;
 		fstat(fd, &sb);
 		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
-		{
 			mgr_on_check(fd, buf, ret, ev_mgr);
-		}
 	}
 
 	return ret;
+}
+
+// memcached
+ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags)
+{
+	typedef ssize_t (*orig_sendmsg_type)(int, const struct msghdr *, int);
+	static orig_sendmsg_type orig_sendmsg;
+	if (!orig_sendmsg)
+		orig_sendmsg = (orig_sendmsg_type) dlsym(RTLD_NEXT, "sendmsg");
+	ssize_t ret = orig_sendmsg(sockfd, msg, flags);	
 }

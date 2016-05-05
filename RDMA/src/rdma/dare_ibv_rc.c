@@ -150,7 +150,7 @@ void* event(void* arg)
                 connect_qp(remote_data, ntohl(remote_data.idx));
             }
 
-            if (close(newsockfd))
+            if (original_close(newsockfd))
                 fprintf(stderr, "failed to close socket\n");
         }
     }

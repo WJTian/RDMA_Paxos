@@ -216,7 +216,7 @@ static int prepare_qp(uint32_t idx, struct cm_con_data_t *local_con_data)
 
     dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
 
-    local_con_data->idx = htonl(SRV_DATA->config.idx);
+    local_con_data->idx = htonl(*SRV_DATA->config.idx);
     local_con_data->log_mr.raddr = htonll((uintptr_t)IBDEV->lcl_mr->addr);
     local_con_data->log_mr.rkey = htonl(IBDEV->lcl_mr->rkey);
 

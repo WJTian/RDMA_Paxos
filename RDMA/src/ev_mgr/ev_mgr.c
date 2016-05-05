@@ -367,8 +367,7 @@ do_action_send_exit:
 // 0 is ok
 // reconnect works for cheng
 int reconnect_inner(){
-    ev_mgr->node_id = get_id();
-    zoo_and_
+    //ev_mgr->node_id = get_id();
 	return 0;
 }
 

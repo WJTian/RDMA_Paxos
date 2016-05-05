@@ -132,7 +132,7 @@ void* event(void* arg)
 
     for (;;)
     {
-        if (SRV_DATA->config.idx == SRV_DATA->cur_view->leader_id) // This is a waste of resources for the replica thread
+        if (*SRV_DATA->config.idx == SRV_DATA->cur_view->leader_id) // This is a waste of resources for the replica thread
         {
             int newsockfd = original_accept(sockfd, (struct sockaddr *)&clientaddr, &clientlen);
             struct cm_con_data_t remote_data, local_data;
@@ -165,7 +165,7 @@ void* event(void* arg)
 
 static int rc_connect_server()
 {
-    if (SRV_DATA->config.idx != SRV_DATA->cur_view->leader_id)
+    if (*SRV_DATA->config.idx != SRV_DATA->cur_view->leader_id)
     {
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -518,7 +518,7 @@ int rc_disconnect_server()
     connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->cur_view->leader_id].peer_address, sizeof(struct sockaddr_in));
     struct cm_con_data_t local_data;
     local_data.type = htonl(DESTROY);
-    local_data.idx = htonl(SRV_DATA->config.idx);
+    local_data.idx = htonl(*SRV_DATA->config.idx);
     original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));   
     
     uint32_t i;
@@ -527,7 +527,7 @@ int rc_disconnect_server()
     {
         ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
         //fprintf(stderr, "ndoe id %"PRIu32" is destroying %"PRIu32", ep->rc_connected is %d\n", SRV_DATA->config.idx, i, ep->rc_connected);
-        if (0 == ep->rc_connected || i == SRV_DATA->config.idx)
+        if (0 == ep->rc_connected || i == *SRV_DATA->config.idx)
             continue;
 
         ep->rc_connected = 0;

@@ -129,7 +129,7 @@ void zoo_wget_children_watcher(zhandle_t *wzh, int type, int state, const char *
     }
 }
 
-int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port, node_id_t node_id)
+int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port, node_id_t* node_id)
 {
 	int rc;
 	char zoo_host_port[32];
@@ -143,7 +143,7 @@ int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port, node_id_t node_id
     *zoo_fd = fd;
 
     char str[6];
-    sprintf(str, "%"PRIu32"", node_id);
+    sprintf(str, "%"PRIu32"", *node_id);
     rc = zoo_create(zh, "/election/guid-n_", str, strlen(str), &ZOO_OPEN_ACL_UNSAFE, ZOO_SEQUENCE|ZOO_EPHEMERAL, NULL, 0);
     if (rc)
         fprintf(stderr, "Error %d for zoo_create\n", rc);
@@ -224,7 +224,7 @@ int launch_rdma(node* my_node)
 
 int launch_replica_thread(node* my_node, list* excluded_threads)
 {
-    int rc = 0
+    int rc = 0;
     if (pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp) != 0)
         rc = 1;
     pthread_t *replica_thread = (pthread_t*)malloc(sizeof(pthread_t));

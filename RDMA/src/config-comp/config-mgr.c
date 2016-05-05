@@ -15,7 +15,7 @@ int mgr_read_config(struct event_manager_t* cur_node,const char* config_path){
         goto goto_config_error;
     }
 
-    if(group_size<=cur_node->node_id){
+    if(group_size <= *cur_node->node_id){
         err_log("EVENT MANAGER : Invalid Node Id\n");
         goto goto_config_error;
     }
@@ -42,7 +42,7 @@ int mgr_read_config(struct event_manager_t* cur_node,const char* config_path){
         goto goto_config_error;
     }    
 
-    config_setting_t *mgr_ele = config_setting_get_elem(mgr_config,cur_node->node_id);
+    config_setting_t *mgr_ele = config_setting_get_elem(mgr_config,*cur_node->node_id);
 
     if(NULL==mgr_ele){
         err_log("EVENT MANAGER : Cannot Find Current Node's Address Section.\n");

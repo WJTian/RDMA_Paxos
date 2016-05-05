@@ -126,20 +126,20 @@ void* event(void* arg)
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
+    if (bind(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->config.idx].peer_address, sizeof(struct sockaddr_in)) < 0)
+        perror ("ERROR on binding");
+    listen(sockfd, 5);
+
     for (;;)
     {
         if (SRV_DATA->config.idx == SRV_DATA->cur_view->leader_id) // This is a waste of resources for the replica thread
         {
-            if (bind(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->config.idx].peer_address, sizeof(struct sockaddr_in)) < 0)
-                perror ("ERROR on binding");
-            listen(sockfd, 5);
             int newsockfd = original_accept(sockfd, (struct sockaddr *)&clientaddr, &clientlen);
-
             struct cm_con_data_t remote_data, local_data;
             int read_bytes = 0, total_read_bytes = 0;
             int xfer_size = sizeof(struct cm_con_data_t);
             while(total_read_bytes < xfer_size) {
-                read_bytes = read(newsockfd, &remote_data, xfer_size);
+                read_bytes = original_read(newsockfd, &remote_data, xfer_size);
                 if(read_bytes > 0)
                     total_read_bytes += read_bytes;
             }
@@ -174,7 +174,7 @@ static int rc_connect_server()
         int read_bytes = 0, total_read_bytes = 0;
         int xfer_size = sizeof(struct cm_con_data_t);
         while(total_read_bytes < xfer_size) {
-            read_bytes = read(sockfd, &remote_data, xfer_size);
+            read_bytes = original_read(sockfd, &remote_data, xfer_size);
             if(read_bytes > 0)
                 total_read_bytes += read_bytes;
         }

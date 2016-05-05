@@ -97,7 +97,6 @@ static void rc_qp_destroy(dare_ib_ep_t* ep)
     if (NULL == ep) return;
 
     rc = ibv_destroy_qp(ep->rc_ep.rc_qp.qp);
-    //fprintf(stderr, "rc_qp_destroy ret is %d\n", rc);
     if (0 != rc) {
         rdma_error(log_fp, "ibv_destroy_qp failed because %s\n", strerror(rc));
     }
@@ -112,7 +111,6 @@ static void rc_cq_destroy(dare_ib_ep_t* ep)
     if (NULL == ep) return;
 
     rc = ibv_destroy_cq(ep->rc_ep.rc_cq.cq);
-    //fprintf(stderr, "rc_cq_destroy ret is %d\n", rc);
     if (0 != rc) {
         rdma_error(log_fp, "ibv_destroy_cq failed because %s\n", strerror(rc));
     }
@@ -132,8 +130,8 @@ void* event(void* arg)
 
     for (;;)
     {
-        if (*SRV_DATA->config.idx == SRV_DATA->cur_view->leader_id) // This is a waste of resources for the replica thread
-        {
+        //if (*SRV_DATA->config.idx == SRV_DATA->cur_view->leader_id) // This is a waste of resources for the replica thread
+        //{
             int newsockfd = original_accept(sockfd, (struct sockaddr *)&clientaddr, &clientlen);
             struct cm_con_data_t remote_data, local_data;
             int read_bytes = 0, total_read_bytes = 0;
@@ -159,7 +157,7 @@ void* event(void* arg)
 
             if (original_close(newsockfd))
                 fprintf(stderr, "failed to close socket\n");
-        }
+        //}
     }
 }
 

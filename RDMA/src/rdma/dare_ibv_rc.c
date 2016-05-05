@@ -184,6 +184,9 @@ static int rc_connect_server()
             fprintf(stderr, "failed to close socket\n");
     }
 
+    pthread_t cm_thread;
+    pthread_create(&cm_thread, NULL, &event, NULL);
+
     return 0;
 }
 

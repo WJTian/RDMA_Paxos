@@ -66,3 +66,14 @@ int original_accept(int socket, struct sockaddr *address, socklen_t *address_len
 
     return ret;
 }
+
+ssize_t original_read(int fd, void *buf, size_t count)
+{
+    typedef ssize_t (*orig_read_type)(int, void *, size_t);
+    static orig_read_type orig_read;
+    if (!orig_read)
+        orig_read = (orig_read_type) dlsym(RTLD_NEXT, "read");
+    ssize_t ret = orig_read(fd, buf, count);
+
+    return ret;
+}

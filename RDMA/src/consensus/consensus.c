@@ -155,7 +155,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         int send_flags[MAX_SERVER_COUNT], poll_completion[MAX_SERVER_COUNT] = {0};
         for (i = 0; i < comp->group_size; i++) {
             ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
-            if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
+            if (i == *SRV_DATA->config.idx || 0 == ep->rc_connected)
                 continue;
             send_count_ptr = &(ep->rc_ep.rc_qp.send_count);
 
@@ -207,7 +207,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         memset(&rm, 0, sizeof(rem_mem_t));
         for (i = 0; i < comp->group_size; i++) {
             ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
-            if (i == SRV_DATA->config.idx || 0 == ep->rc_connected)
+            if (i == *SRV_DATA->config.idx || 0 == ep->rc_connected)
                 continue;
 
             rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
@@ -313,9 +313,9 @@ void *handle_accept_req(void* arg)
 
                     SRV_DATA->log->tail = SRV_DATA->log->end;
                     SRV_DATA->log->end += log_entry_len(entry);
-                    uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * comp->node_id);
-
                     uint32_t my_id = *comp->node_id;
+                    uint32_t offset = (uint32_t)(offsetof(dare_log_t, entries) + SRV_DATA->log->tail + ACCEPT_ACK_SIZE * my_id);
+
                     accept_ack* reply = (accept_ack*)((char*)entry + ACCEPT_ACK_SIZE * my_id);
                     reply->node_id = my_id;
                     reply->msg_vs.view_id = entry->msg_vs.view_id;

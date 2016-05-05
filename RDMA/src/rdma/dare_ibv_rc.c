@@ -154,6 +154,7 @@ void* event(void* arg)
                 dare_ib_ep_t* ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
                 rc_qp_destroy(ep);    
                 rc_cq_destroy(ep);
+                ep->rc_connected = 0;
             }
 
             if (original_close(newsockfd))

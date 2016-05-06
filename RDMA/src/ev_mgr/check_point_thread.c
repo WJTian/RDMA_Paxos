@@ -53,6 +53,13 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         data = malloc(len);
         evbuffer_copyout(input, data, len);
         debug_log("[check point] read data:#%s#\n",data);
+
+        int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC);
+        if (-1 != dbg_fd){
+            write(dbg_fd,data,len);
+            close(dbg_fd);
+        }
+        
         char* pos = strstr(data,UNIX_CMD_disconnect);
         int ret=0;
         if (pos){ // got a command
@@ -65,11 +72,7 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         }else{// try other commands
             pos = strstr(data,UNIX_CMD_reconnect);
             if (pos){
-                int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC);
-                if (-1 != dbg_fd){
-                    write(dbg_fd,RE_DBG_MSG,sizeof(RE_DBG_MSG));
-                    close(dbg_fd);
-                }
+
                 debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
                 pthread_t thread_id;
                 ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);

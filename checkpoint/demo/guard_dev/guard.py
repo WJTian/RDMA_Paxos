@@ -386,6 +386,7 @@ def unpack_ext_res(tmpDir):
 		return -1
 
 def inner_checkpoint(node_id,round_id):
+	st_ck = time.clock()
 	print "[inner_checkpoint] criu will be used for checkpointing pid: %d at machine %d, at round %d"%(AIM_PID,node_id,round_id)
 	# mkdir dump
 	tmpDir = None
@@ -394,40 +395,64 @@ def inner_checkpoint(node_id,round_id):
 	except Exception as e:
 		pass
 	if tmpDir:
+		st_t = time.clock()
 		send_disconnect_cmd()
+		ed_t = time.clock()
+		print "[T send_disconnect_cmd] %f"%(ed_t-st_t)
 		print "[inner_checkpoint] sleep 1 seconds to wait for disconnect"
 		time.sleep(1)
+		st_t = time.clock()
 		reset_pid()
+		ed_t = time.clock()
+		print "[T reset_pid] %f"%(ed_t-st_t)
 		# before criu dump, fd_index.txt should be generated and be stored into tmpDir.
 		# return 0 means ok
+		st_t = time.clock()
 		retcode = generate_fd_index(tmpDir,AIM_PID)
+		ed_t = time.clock()
 		if retcode:
 			print "[inner_checkpoint] generate_fd_index called but failed.\n"
 			sys.stdout.flush()
 			return
+		else:
+			print "[T generate_fd_index] %f"%(ed_t - st_t)	
 		#remove --shell-job
 		#remove --leave-running
 		cmd="/sbin/criu dump -v4 -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
+		st_t = time.clock()
 		retcode = subprocess.call(cmd,shell=True)
+		ed_t = time.clock()
 		if retcode:
 			print "[inner_checkpoint] criu dump error, please cat /tmp/criu.dump.log"
 		else:
+			print "[T CRIU DUMP] %f"%(ed_t - st_t)
 			# Currently, the target has been closed by criu.
 			# pack all external resource, such as files, into tmpDir.
-			pack_ext_res(tmpDir,AIM_PID);
+			pack_ext_res(tmpDir,AIM_PID)
 			zipBaseName = getNextBaseName() # without extName
+			st_t = time.clock()
 			zipAbsName = shutil.make_archive(zipBaseName,'zip',tmpDir)
+			ed_t = time.clock()
+			print "[T ZIP] %f"%(ed_t - st_t)
 			print "[inner_checkpoint] checkpoint %s is created."%(zipAbsName)
 			shutil.rmtree(tmpDir)
 			#rsync zip file to others
 			print "[inner_checkpoint] rsync cmd: %s"%(RSYNC_CMD)
+			st_t = time.clock()
 			subprocess.call(RSYNC_CMD,shell=True)
+			ed_t = time.clock()
+			print "[T RSYNC] %f"%(ed_t -st_t)
 			# restore RDMA 
+			st_t = time.clock()
 			inner_restore(node_id,round_id)
+			ed_t = time.clock()
+			print "[T inner_restore] %f"%(ed_t - st_t)
 	else:
 		print "[inner_checkpoint]creat tmpDir failed."
 	sys.stdout.flush()
+	ed_ck = time.clock()
+	print "[T_ALL inner_checkpoint] %f"%(ed_ck-st_ck)
 	return
 
 
@@ -447,6 +472,7 @@ def reset_pid():
 	threading.Timer(TIMER_SECS,reset_pid).start()
 	
 def inner_restore(node_id,round_id):
+	st_re = time.clock()
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
 	# mkdir dump
 	tmpDir = None
@@ -457,12 +483,18 @@ def inner_restore(node_id,round_id):
 	except Exception as e:
 		pass
 	if tmpDir and os.path.exists(currZip):
+		st_t = time.clock()
 		# unzip
 		with zipfile.ZipFile(currZip,'r') as zf:
 			zf.extractall(tmpDir)
+		ed_t = time.clock()
+		print "[T UNZIP] %f"%(ed_t - st_t)
 		# kill
+		st_t = time.clock()
 		reset_pid() 
 		subprocess.call(KILL_CMD,shell=True)
+		ed_t = time.clock()
+		print "[T kill] %f"%(ed_t - st_t)
 		# wait for kill
 		time.sleep(1)
 		# Before criu restore, fd files and external files need to be replaced.
@@ -470,14 +502,23 @@ def inner_restore(node_id,round_id):
 		# remove --shell-job
 		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
+		st_t = time.clock()
 		retcode = subprocess.call(cmd,shell=True)
+		ed_t = time.clock()
 		if retcode :
 			print "[inner_restore] criu restore failed. please cat /tmp/criu.restore.log"
+		else:
+			print "[T CRIU RESTORE] %f"%(ed_t - st_t)
 		shutil.rmtree(tmpDir)
 		reset_pid()
 		# send reconnect cmd
+		st_t = time.clock()
 		send_reconnect_cmd()	
+		ed_t = time.clock()
+		print "[T send_reconnect_cmd] %f"%(ed_t - st_t)
 		sys.stdout.flush()
+		ed_re = time.clock()
+		print "[T_ALL inner_restore] %f"%(ed_re - st_re)
 		return
 	else:
 		print "[inner_restore] unable to to restore since %s is missing."%(currZip) 

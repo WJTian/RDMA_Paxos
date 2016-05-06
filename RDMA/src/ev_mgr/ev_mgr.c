@@ -367,6 +367,7 @@ int reconnect_inner_set_flag(){
 static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->node_id = get_id();
     // currently we only have zookeeper fd
+    fprintf(stderr, "my id is %"PRIu32"\n", ev_mgr->node_id);
     listRelease(ev_mgr->excluded_fds);
     ev_mgr->excluded_fds = NULL;
     ev_mgr->excluded_fds = listCreate();

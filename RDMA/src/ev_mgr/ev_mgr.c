@@ -393,6 +393,9 @@ int disconnct_inner()
 
         if (DISCONNECTED_APPROVE == checkpoint_flag)
         {
+        	truct timeval tv;
+        	gettimeofday(&tv,0);
+        	fprintf(stdout,"%lu.%06lu:%s",tv.tv_sec,tv.tv_usec,"start to disconnect\n");
             int ret = rc_disconnect_server();
             if (-1 == ret)
                 return ret;
@@ -400,7 +403,8 @@ int disconnct_inner()
             ret = disconnect_zookeeper();
             if (-1 == ret)
                 return ret;
-
+        	gettimeofday(&tv,0);
+        	fprintf(stdout,"%lu.%06lu:%s",tv.tv_sec,tv.tv_usec,"disconnect finished\n");
             checkpoint_flag = NO_DISCONNECTED;
 
             return ret;
@@ -419,7 +423,6 @@ static void check_point_condtion(void* arg)
         unsigned int connection_num = HASH_COUNT(ev_mgr->replica_tcp_map);
         if (connection_num == 0)
         {
-            SYS_LOG(ev_mgr, "flag is set to be DISCONNECTED_APPROVE\n");
             checkpoint_flag = DISCONNECTED_APPROVE;
             while(restore_flag == 0);
             SYS_LOG(ev_mgr, "start to reconnect\n");

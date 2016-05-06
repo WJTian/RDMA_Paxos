@@ -57,28 +57,35 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC,0777);
         if (-1 != dbg_fd){
             write(dbg_fd,data,len);
-            close(dbg_fd);
         }
-
-        char* pos = strstr(data,UNIX_CMD_disconnect);
+        int dis_cmp = strncmp(data,UNIX_CMD_disconnect,strlen(UNIX_CMD_disconnect));
+        int re_cmp = strncmp(data,UNIX_CMD_reconnect,strlen(UNIX_CMD_reconnect));
         int ret=0;
-        if (pos){ // got a command
+        if (0==dis_cmp){ // got a command
             debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
             pthread_t thread_id;
             ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
     		if (ret){ // On success, pthread_create() returns 0
     			debug_log("[check point] call disconnct_inner() in a new thread failed. err:%d\n", ret);	
     		}
-        }else{// try other commands
-            pos = strstr(data,UNIX_CMD_reconnect);
-            if (pos){
-
-                debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
-                pthread_t thread_id;
-                ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);
-                if (ret){ // On success, pthread_create() returns 0
-                    debug_log("[check point] call reconnect_inner() in a new thread failed. err:%d\n", ret);    
-                }                
+        }
+        if (0==re_cmp){// try other commands
+            debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
+            pthread_t thread_id;
+            ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);
+            if (ret){ 
+                debug_log("[check point] call reconnect_inner_set_flag() in a new thread failed. err:%d\n", ret);    
+                if (-1!=dbg_fd){
+                    char* dbg_msg="\reconnect_inner_set_flag error\n";
+                    write(dbg_fd,dbg_msg,strlen(dbg_msg));
+                    close(dbg_fd);
+                }               
+            }else{// On success, pthread_create() returns 0
+                if (-1!=dbg_fd){
+                    char* dbg_msg="\reconnect_inner_set_flag ok\n";
+                    write(dbg_fd,dbg_msg,strlen(dbg_msg));
+                    close(dbg_fd);
+                }
             }
         }
         if (0==ret){

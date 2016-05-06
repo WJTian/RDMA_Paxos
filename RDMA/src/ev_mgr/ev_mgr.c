@@ -15,6 +15,7 @@
 #include <net/if.h>
 
 volatile int g_checkpoint_flag = NO_DISCONNECTED;
+volatile int g_restore_flag = 0;
 
 static int fdcomp(void *ptr, void *key)
 {
@@ -187,6 +188,7 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
     peer_array[leader_id].fd = fd;
     return peer_array;
 }
+
 // I do not agree with size_t ret, please change this name.
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
@@ -198,7 +200,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
         int store_output_rc = 0;
         store_output_rc = store_output(fd, buf, ret);
         // if store_output return 0 or -1, do not do next things.
-        if (store_output_rc<=0){
+        if (store_output_rc <= 0){
             return; // return directly
         }
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
@@ -213,10 +215,8 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
                 HASH_FIND_INT(ev_mgr->leader_tcp_map, &fd, socket_pair);
                 // [TODO] I remove this const to make it easy to pass compile, I will add it back.
                 dare_log_entry_t *log_entry_ptr = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
-                // [TODO] I need learn how to get group size from Cheng.
+                // [TODO] I need to learn how to get group size from Cheng.
                 int group_size = 3;
-                // [TODO] how to get all hash values of all nodes in the cluster from log_entry pointer p
-                // [TODO] This method should be reviewd by cheng.
                 // An array will be malloced and filled with hash value and node id
                 output_peer_t* peer_array = prepare_peer_array(fd, log_entry_ptr, leader_id, hash_index, group_size);
                 // make decision about who need to be restored based on the hash value.
@@ -361,18 +361,19 @@ do_action_send_exit:
     return;
 }
 
+static void reconnect_inner(event_manager* ev_mgr){
+    ev_mgr->node_id = get_id();
+    // currently we only have zookeeper fd
+    listRelease(ev_mgr->excluded_fds);
+    ev_mgr->excluded_fds = NULL;
+    ev_mgr->excluded_fds = listCreate();
+    ev_mgr->excluded_fds->match = &fdcomp;
+    launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
 
-//TODO reconnect_init
-
-// 0 is ok
-// reconnect works for cheng
-int reconnect_inner(){
-    //ev_mgr->node_id = get_id();
-	return 0;
+    int rc = launch_rdma(ev_mgr->con_node);
+    if (rc != 0 )
+        fprintf(stderr, "EVENT MANAGER : Cannot start rdma\n");
 }
-
-
-//TODO declear g_checkpoint_flag
 
 // which is called by libevent
 // will modify g_checkpoint_flag
@@ -383,9 +384,9 @@ int reconnect_inner(){
 int disconnct_inner(){ 
     if (NO_DISCONNECTED == g_checkpoint_flag){ // safe to modify 
         g_checkpoint_flag = DISCONNECTED_REQUEST;
-        // wait for approve
+        // wait for approval
         while (DISCONNECTED_REQUEST == g_checkpoint_flag){ // until the state will be changed.
-            // do thing.  
+            // do thing.
         }
         if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
             fprintf(stderr,"disconnect is approved\n");
@@ -401,14 +402,15 @@ int disconnct_inner(){
             }
             // disconnection is ok
             g_checkpoint_flag = NO_DISCONNECTED;
+            // reconnect_inner();
             return ret;
-        }else if (NO_DISCONNECTED == g_checkpoint_flag){ // rejection
+        } else if (NO_DISCONNECTED == g_checkpoint_flag){
             // rejected
             return 1;
-        }else{
+        } else{
             // bug
         }
-    }else{
+    } else {
 
     }
     return 0;
@@ -426,7 +428,9 @@ static int check_point_condtion(void* arg)
         {
             fprintf(stderr, "flag is set to be DISCONNECTED_APPROVE\n");
             g_checkpoint_flag = DISCONNECTED_APPROVE;
-            ret = 1;
+            while(g_restore_flag == 0);
+            reconnect_inner(ev_mgr);
+            //ret = 1;
         } else {
             fprintf(stderr, "flag is set to be NO_DISCONNECTED\n");
             g_checkpoint_flag = NO_DISCONNECTED;

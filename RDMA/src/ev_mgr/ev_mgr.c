@@ -393,7 +393,7 @@ int disconnct_inner()
 
         if (DISCONNECTED_APPROVE == checkpoint_flag)
         {
-        	truct timeval tv;
+        	struct timeval tv;
         	gettimeofday(&tv,0);
         	fprintf(stdout,"%lu.%06lu:%s",tv.tv_sec,tv.tv_usec,"start to disconnect\n");
             int ret = rc_disconnect_server();

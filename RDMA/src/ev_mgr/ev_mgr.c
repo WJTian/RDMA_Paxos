@@ -360,7 +360,10 @@ static void do_action_send(request_record *retrieve_data,void* arg){
 do_action_send_exit:
     return;
 }
-
+int reconnect_inner_set_flag(){
+    debug_log("[reconnect_inner_set_flag] is called.\n");
+    g_restore_flag = 1;
+}
 static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->node_id = get_id();
     // currently we only have zookeeper fd

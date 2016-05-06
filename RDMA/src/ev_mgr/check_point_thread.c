@@ -37,9 +37,9 @@ void* call_disconnect_start(void *argv){
 	return NULL;
 }
 void* call_reconnect_start(void * argv){
-    debug_log("[check point] reconnect_inner() is called at a new thread: %lu\n",(unsigned long)pthread_self());
-    int ret = reconnect_inner();
-    debug_log("[check point] reconnect_inner() is finished %lu\n",(unsigned long)pthread_self());
+    debug_log("[check point] reconnect_inner_set_flag() is called at a new thread: %lu\n",(unsigned long)pthread_self());
+    int ret = reconnect_inner_set_flag();
+    debug_log("[check point] reconnect_inner_set_flag() is finished %lu\n",(unsigned long)pthread_self());
     return NULL;
 }
 void unix_read_cb(struct bufferevent *bev, void *ctx){

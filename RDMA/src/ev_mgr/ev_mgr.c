@@ -367,17 +367,20 @@ int reconnect_inner_set_flag(){
 static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->node_id = get_id();
     // currently we only have zookeeper fd
-    fprintf(stderr, "my id is %"PRIu32"\n", ev_mgr->node_id);
+    SYS_LOG(ev_mgr, "my id is %"PRIu32"\n", ev_mgr->node_id);
     listRelease(ev_mgr->excluded_fds);
     ev_mgr->excluded_fds = NULL;
     ev_mgr->excluded_fds = listCreate();
     ev_mgr->excluded_fds->match = &fdcomp;
     launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
+    uint32_t leader_id = get_leader_id(ev_mgr->con_node);
+    SYS_LOG(ev_mgr, "finished zoo, %"PRIu32"\n", leader_id);
 
     int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )
         fprintf(stderr, "EVENT MANAGER : Cannot start rdma\n");
     g_restore_flag = 0;
+    SYS_LOG(ev_mgr, "leaving reconnect inner\n");
 }
 
 // which is called by libevent
@@ -424,7 +427,7 @@ int disconnct_inner(){
 static int check_point_condtion(void* arg)
 {
     event_manager* ev_mgr = arg;
-    int ret;
+    int ret = 0;
     if (g_checkpoint_flag == NO_DISCONNECTED)
     	ret = 0;
     else if (g_checkpoint_flag == DISCONNECTED_REQUEST) {

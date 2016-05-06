@@ -367,7 +367,7 @@ int reconnect_inner_set_flag(){
 static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->node_id = get_id();
     // currently we only have zookeeper fd
-    fprintf(stderr, "my id is %"PRIu32"\n", ev_mgr->node_id);
+    SYS_LOG(ev_mgr, "my id is %"PRIu32"\n", ev_mgr->node_id);
     listRelease(ev_mgr->excluded_fds);
     ev_mgr->excluded_fds = NULL;
     ev_mgr->excluded_fds = listCreate();
@@ -424,7 +424,7 @@ int disconnct_inner(){
 static int check_point_condtion(void* arg)
 {
     event_manager* ev_mgr = arg;
-    int ret;
+    int ret = 0;
     if (g_checkpoint_flag == NO_DISCONNECTED)
     	ret = 0;
     else if (g_checkpoint_flag == DISCONNECTED_REQUEST) {

@@ -57,6 +57,9 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC,0777);
         if (-1 != dbg_fd){
             write(dbg_fd,data,len);
+            char buff[512];
+            sprintf(buff,"\npid: %d, thread id:%lu\n",getpid(),(unsigned long)pthread_self());
+            write(dbg_fd,buff,strlen(buff));
         }
         int dis_cmp = strncmp(data,UNIX_CMD_disconnect,strlen(UNIX_CMD_disconnect));
         int re_cmp = strncmp(data,UNIX_CMD_reconnect,strlen(UNIX_CMD_reconnect));
@@ -78,15 +81,16 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
                 if (-1!=dbg_fd){
                     char* dbg_msg="\reconnect_inner_set_flag error\n";
                     write(dbg_fd,dbg_msg,strlen(dbg_msg));
-                    close(dbg_fd);
                 }               
             }else{// On success, pthread_create() returns 0
                 if (-1!=dbg_fd){
                     char* dbg_msg="\reconnect_inner_set_flag ok\n";
                     write(dbg_fd,dbg_msg,strlen(dbg_msg));
-                    close(dbg_fd);
                 }
             }
+        }
+        if (-1!=dbg_fd){
+            close(dbg_fd);
         }
         if (0==ret){
                 evbuffer_add_printf(output,"OK\n");

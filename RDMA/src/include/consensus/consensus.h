@@ -10,7 +10,7 @@ struct node_t;
 struct consensus_component_t;
 
 typedef void (*user_cb)(db_key_type index,void* arg);
-typedef int (*up_check)(void* arg);
+typedef void (*up_check)(void* arg);
 typedef int (*up_get)(view_stamp clt_id, void* arg);
 
 typedef enum con_role_t{

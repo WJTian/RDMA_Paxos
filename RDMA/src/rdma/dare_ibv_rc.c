@@ -123,8 +123,13 @@ void* event(void* arg)
     socklen_t clientlen = sizeof(clientaddr);
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    // after restore: Cannot assign requested address
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = SRV_DATA->config.servers[*SRV_DATA->config.idx].peer_address->sin_port;;
 
-    if (bind(sockfd, (struct sockaddr *)SRV_DATA->config.servers[*SRV_DATA->config.idx].peer_address, sizeof(struct sockaddr_in)) < 0)
+    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr_in)) < 0)
         perror ("ERROR on binding");
     listen(sockfd, 5);
 

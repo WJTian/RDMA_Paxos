@@ -269,13 +269,10 @@ void *handle_accept_req(void* arg)
     {
         if (comp->cur_view->leader_id != *comp->node_id)
         {
-            if (comp->uc(comp->up_para))
-                return NULL;
+            comp->uc(comp->up_para);
 
             entry = log_get_entry(SRV_DATA->log, &SRV_DATA->log->end);
 
-            SYS_LOG(comp, "loop get view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu, entry point %p\n",
-           	               entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size, (void*)entry);
             if (entry->data_size != 0)
             {
                 SYS_LOG(comp, "match get view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu, entry point %p\n", 
@@ -373,7 +370,6 @@ void *handle_accept_req(void* arg)
                     clock_add(&c_k);
                     clock_display(comp->sys_log_file, &c_k);
 #endif
-                    SYS_LOG(comp, "leaving..... %d\n", entry->msg_vs.view_id );
                 }   
             }
         }

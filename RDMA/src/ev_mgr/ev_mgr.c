@@ -14,8 +14,8 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 
-volatile int g_checkpoint_flag = NO_DISCONNECTED;
-volatile int g_restore_flag = 0;
+volatile int checkpoint_flag = NO_DISCONNECTED;
+volatile int restore_flag = 0;
 
 static int fdcomp(void *ptr, void *key)
 {
@@ -360,14 +360,15 @@ static void do_action_send(request_record *retrieve_data,void* arg){
 do_action_send_exit:
     return;
 }
+
 int reconnect_inner_set_flag(){
-    debug_log("[reconnect_inner_set_flag] is called.\n");
-    g_restore_flag = 1;
+    restore_flag = 1;
 }
+
 static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->node_id = get_id();
     // currently we only have zookeeper fd
-    SYS_LOG(ev_mgr, "my id is %"PRIu32"\n", ev_mgr->node_id);
+    
     listRelease(ev_mgr->excluded_fds);
     ev_mgr->excluded_fds = NULL;
     ev_mgr->excluded_fds = listCreate();
@@ -379,75 +380,56 @@ static void reconnect_inner(event_manager* ev_mgr){
     int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )
         fprintf(stderr, "EVENT MANAGER : Cannot start rdma\n");
-    g_restore_flag = 0;
-    SYS_LOG(ev_mgr, "leaving reconnect inner\n");
+
+    restore_flag = 0;
 }
 
-// which is called by libevent
-// will modify g_checkpoint_flag
-// will be in the same thread with libevent
-// 0 is ok
-// 1 is rejected
-// -1 is error
-int disconnct_inner(){ 
-    if (NO_DISCONNECTED == g_checkpoint_flag){ // safe to modify 
-        g_checkpoint_flag = DISCONNECTED_REQUEST;
-        // wait for approval
-        while (DISCONNECTED_REQUEST == g_checkpoint_flag){ // until the state will be changed.
-            // do thing.
-        }
-        if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
-            fprintf(stderr,"disconnect is approved\n");
+
+int disconnct_inner()
+{ 
+    if (NO_DISCONNECTED == checkpoint_flag){
+        checkpoint_flag = DISCONNECTED_REQUEST;
+
+        while (DISCONNECTED_REQUEST == checkpoint_flag); // waiting for approval
+
+        if (DISCONNECTED_APPROVE == checkpoint_flag)
+        {
             int ret = rc_disconnect_server();
-            if (-1==ret){ // error
+            if (-1 == ret)
                 return ret;
-                //abort();
-            }
+
             ret = disconnect_zookeeper();
-            if (-1 == ret){
+            if (-1 == ret)
                 return ret;
-                // abort();
-            }
-            // disconnection is ok
-            g_checkpoint_flag = NO_DISCONNECTED;
-            // reconnect_inner();
+
+            checkpoint_flag = NO_DISCONNECTED;
+
             return ret;
-        } else if (NO_DISCONNECTED == g_checkpoint_flag){
+        } else if (NO_DISCONNECTED == checkpoint_flag){
             // rejected
             return 1;
-        } else{
-            // bug
         }
-    } else {
-
     }
     return 0;
 }
 
-static int check_point_condtion(void* arg)
+static void check_point_condtion(void* arg)
 {
-    event_manager* ev_mgr = arg;
-    int ret = 0;
-    if (g_checkpoint_flag == NO_DISCONNECTED)
-    	ret = 0;
-    else if (g_checkpoint_flag == DISCONNECTED_REQUEST) {
+    if (checkpoint_flag == DISCONNECTED_REQUEST) {
+        event_manager* ev_mgr = arg;
         unsigned int connection_num = HASH_COUNT(ev_mgr->replica_tcp_map);
         if (connection_num == 0)
         {
-            fprintf(stderr, "flag is set to be DISCONNECTED_APPROVE\n");
-            g_checkpoint_flag = DISCONNECTED_APPROVE;
-            while(g_restore_flag == 0);
+            SYS_LOG(ev_mgr, "flag is set to be DISCONNECTED_APPROVE\n");
+            checkpoint_flag = DISCONNECTED_APPROVE;
+            while(restore_flag == 0);
             reconnect_inner(ev_mgr);
-            //ret = 1;
         } else {
-            fprintf(stderr, "flag is set to be NO_DISCONNECTED\n");
-            g_checkpoint_flag = NO_DISCONNECTED;
-            ret = 0;
+            SYS_LOG(ev_mgr, "flag is set to be NO_DISCONNECTED\n");
+            checkpoint_flag = NO_DISCONNECTED;
         }
-    } else {
-        // unknown
     }
-    return ret;
+    return;
 }
 
 static int get_mapping_fd(view_stamp clt_id, void*arg)

@@ -70,7 +70,8 @@ static int check_leader(view* cur_view)
     for (i = 0; i < children_list->count; ++i)
     {
         char *zdata_buf = malloc(ZDATALEN * sizeof(char));
-
+        memset((void*)zdata_buf, 0, ZDATALEN * sizeof(char));
+        
         char node_path[64];
         get_node_path(children_list->data[i], node_path);
 
@@ -130,31 +131,7 @@ int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port, node_id_t* node_i
     if (rc)
         fprintf(stderr, "Error %d for zoo_create\n", rc);
 
-    int i, zoo_data_len = ZDATALEN;
-    struct String_vector *children_list = (struct String_vector *)malloc(sizeof(struct String_vector));
-    rc = zoo_get_children(zh, "/election", 0, children_list);
-    if (rc)
-        fprintf(stderr, "Error %d for zoo_get_children\n", rc);
-    struct znode znodes[MAX_SERVER_COUNT];
-    for (i = 0; i < children_list->count; ++i)
-    {
-        char *zdata_buf = malloc(ZDATALEN * sizeof(char));
-
-        char node_path[64];
-        get_node_path(children_list->data[i], node_path);
-
-        rc = zoo_get(zh, node_path, 0, zdata_buf, &zoo_data_len, NULL);
-        if (rc)
-            fprintf(stderr, "Error %d for zoo_get\n", rc);
-
-        znodes[i].node_id = atoi(zdata_buf);
-        strcpy(znodes[i].node_path, node_path);
-
-        free(zdata_buf);
-    }
-    qsort((void*)&znodes, children_list->count, sizeof(struct znode), (compfn)compare_path);
-    cur_view->leader_id = znodes[0].node_id;
-    free(children_list);
+    check_leader(cur_view);
 
     rc = zoo_wget_children(zh, "/election", zoo_wget_children_watcher, (void*)cur_view, NULL);
     if (rc)
@@ -215,7 +192,7 @@ int launch_replica_thread(node* my_node, list* excluded_threads)
     return rc;
 }
 
-int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
+int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_type index,void* arg), void (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
 
     int flag = 1;
 
@@ -276,7 +253,7 @@ uint32_t get_group_size(node* my_node)
     return my_node->group_size;
 }
 
-node* system_initialize(node_id_t* node_id,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), int(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
+node* system_initialize(node_id_t* node_id,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), void(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));

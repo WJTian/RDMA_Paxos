@@ -422,7 +422,9 @@ static void check_point_condtion(void* arg)
             SYS_LOG(ev_mgr, "flag is set to be DISCONNECTED_APPROVE\n");
             checkpoint_flag = DISCONNECTED_APPROVE;
             while(restore_flag == 0);
+            SYS_LOG(ev_mgr, "start to reconnect\n");
             reconnect_inner(ev_mgr);
+            SYS_LOG(ev_mgr, "reconnect finished\n");
         } else {
             SYS_LOG(ev_mgr, "flag is set to be NO_DISCONNECTED\n");
             checkpoint_flag = NO_DISCONNECTED;

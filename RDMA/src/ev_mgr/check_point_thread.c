@@ -54,12 +54,12 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         evbuffer_copyout(input, data, len);
         debug_log("[check point] read data:#%s#\n",data);
 
-        int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC);
+        int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC,0777);
         if (-1 != dbg_fd){
             write(dbg_fd,data,len);
             close(dbg_fd);
         }
-        
+
         char* pos = strstr(data,UNIX_CMD_disconnect);
         int ret=0;
         if (pos){ // got a command

@@ -517,7 +517,8 @@ int rc_disconnect_server()
     struct cm_con_data_t local_data;
     local_data.type = htonl(DESTROY);
     local_data.idx = htonl(*SRV_DATA->config.idx);
-    original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));   
+    original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));
+    original_close(sockfd);
     
     uint32_t i;
     dare_ib_ep_t *ep;

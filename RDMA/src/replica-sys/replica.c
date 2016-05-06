@@ -85,25 +85,7 @@ static int check_leader(view* cur_view)
 
         free(zdata_buf);
     }
-
-    uint32_t j;
-    dare_ib_ep_t *ep;
-    for (j = 0; j < MAX_SERVER_COUNT; j++)
-    {
-        flag = 0;
-        ep = (dare_ib_ep_t*)SRV_DATA->config.servers[j].ep;
-        for (i = 0; i < children_list->count; i++)
-        {
-            if (j == znodes[i].node_id)
-                flag = 1;
-        }
-
-        if (flag == 1)
-            ep->rc_connected = 1;
-        else
-            ep->rc_connected = 0;
-    }
-
+    
     qsort((void*)&znodes, children_list->count, sizeof(struct znode), (compfn)compare_path);
 
     cur_view->leader_id = znodes[0].node_id;

@@ -376,6 +376,7 @@ static void reconnect_inner(event_manager* ev_mgr){
     int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )
         fprintf(stderr, "EVENT MANAGER : Cannot start rdma\n");
+    g_restore_flag = 0;
 }
 
 // which is called by libevent

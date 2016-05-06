@@ -18,6 +18,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/stat.h> 
+#include <fcntl.h>
 
 #define UNIX_SOCK_PATH "/tmp/checkpoint.server.sock"
 #define UNIX_CMD_disconnect "disconnect"
@@ -42,6 +44,7 @@ void* call_reconnect_start(void * argv){
     debug_log("[check point] reconnect_inner_set_flag() is finished and returned(%d) %lu\n",ret, (unsigned long)pthread_self());
     return NULL;
 }
+#define RE_DBG_MSG "reconnect is called.\n\n"
 void unix_read_cb(struct bufferevent *bev, void *ctx){
         struct evbuffer *input = bufferevent_get_input(bev);
         struct evbuffer *output = bufferevent_get_output(bev);
@@ -62,6 +65,11 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         }else{// try other commands
             pos = strstr(data,UNIX_CMD_reconnect);
             if (pos){
+                int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC);
+                if (-1 != dbg_fd){
+                    write(dbg_fd,RE_DBG_MSG,sizeof(RE_DBG_MSG));
+                    close(dbg_fd);
+                }
                 debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
                 pthread_t thread_id;
                 ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);

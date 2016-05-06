@@ -375,7 +375,6 @@ static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->excluded_fds->match = &fdcomp;
     launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
-    SYS_LOG(ev_mgr, "finished zoo, %"PRIu32"\n", leader_id);
 
     int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )

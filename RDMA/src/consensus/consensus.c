@@ -10,6 +10,7 @@
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
 #define USE_SPIN_LOCK
+#define MEASURE_LATENCY
 
 #define DUMMY_END 'f'
 
@@ -198,6 +199,9 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
             goto handle_submit_req_exit;
         }
 
+#ifdef MEASURE_LATENCY
+        clock_add(&c_k);
+#endif
         char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
         *dummy = DUMMY_END;
 
@@ -280,11 +284,6 @@ void *handle_accept_req(void* arg)
                 char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
                 if (*dummy == DUMMY_END) // atmoic opeartion
                 {
-#ifdef MEASURE_LATENCY
-                    clock_handler c_k;
-                    clock_init(&c_k);
-                    clock_add(&c_k);
-#endif
                     SYS_LOG(comp, "found view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu\n",
                                    entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size);
                     if(entry->msg_vs.view_id < comp->cur_view->view_id){
@@ -348,10 +347,6 @@ void *handle_accept_req(void* arg)
 
                     post_send(entry->node_id, reply, ACCEPT_ACK_SIZE, IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags, poll_completion);
 
-#ifdef MEASURE_LATENCY
-                    clock_add(&c_k);
-#endif
-
                     if(view_stamp_comp(&entry->req_canbe_exed, comp->highest_committed_vs) > 0)
                     {
                         start = vstol(comp->highest_committed_vs)+1;
@@ -365,11 +360,6 @@ void *handle_accept_req(void* arg)
                         *(comp->highest_committed_vs) = entry->req_canbe_exed;
                     }
                     SYS_LOG(comp, "before leaving..... %d, SRV_DATA->log->end is %"PRIu64"\n", entry->msg_vs.view_id, SRV_DATA->log->end);
-
-#ifdef MEASURE_LATENCY
-                    clock_add(&c_k);
-                    clock_display(comp->sys_log_file, &c_k);
-#endif
                 }   
             }
         }

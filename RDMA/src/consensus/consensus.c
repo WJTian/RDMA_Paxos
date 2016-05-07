@@ -221,6 +221,10 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags[i], poll_completion[i]);
         }
+#ifdef MEASURE_LATENCY
+        clock_add(&c_k);
+#endif
+
 recheck:
         for (i = 0; i < MAX_SERVER_COUNT; i++) {
             if (entry->ack[i].msg_vs.view_id == next.view_id && entry->ack[i].msg_vs.req_id == next.req_id)

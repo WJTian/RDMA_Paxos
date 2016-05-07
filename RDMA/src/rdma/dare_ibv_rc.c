@@ -240,7 +240,7 @@ static int prepare_qp(uint32_t idx, struct cm_con_data_t *local_con_data)
     qp_init_attr.cap.max_send_sge = 1;  
     qp_init_attr.cap.max_recv_sge = 1;
     qp_init_attr.cap.max_recv_wr = 1;
-    qp_init_attr.cap.max_send_wr = IBDEV->rc_max_send_wr;;
+    qp_init_attr.cap.max_send_wr = IBDEV->rc_max_send_wr;
     ep->rc_ep.rc_qp.qp = ibv_create_qp(IBDEV->rc_pd, &qp_init_attr);
     if (NULL == ep->rc_ep.rc_qp.qp) {
         error_return(1, log_fp, "Cannot create QP\n");

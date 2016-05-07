@@ -266,7 +266,7 @@ void *handle_accept_req(void* arg)
     
     dare_log_entry_t* entry;
 
-    set_affinity(1);
+    //set_affinity(1);
     SYS_LOG(comp, "launching replica thread. sys log is %d", comp->sys_log);
 
     for (;;)

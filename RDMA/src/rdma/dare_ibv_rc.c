@@ -128,6 +128,9 @@ void* event(void* arg)
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = SRV_DATA->config.servers[*SRV_DATA->config.idx].peer_address->sin_port;;
+    
+    int opt_on = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_on, sizeof(opt_on));
 
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr_in)) < 0)
         perror ("ERROR on binding");

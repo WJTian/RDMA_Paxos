@@ -215,7 +215,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
             rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags[i], poll_completion[i]);
-            SYS_LOG(ev_mgr, "post send finished\n");
+            SYS_LOG(comp, "post send finished\n");
         }
 
 recheck:

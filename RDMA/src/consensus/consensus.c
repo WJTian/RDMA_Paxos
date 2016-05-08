@@ -128,8 +128,7 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
 #endif
 
         view_stamp next = get_next_view_stamp(comp);
-        SYS_LOG(comp, "handling request, view id is %"PRIu32", req id  %"PRIu32", type is %d, data is (%s), size is %zu\n",
-		               next.view_id, next.req_id, type, (char*)data, data_size);
+
         if (type == P_TCP_CONNECT)
         {
             clt_id->view_id = next.view_id;
@@ -189,8 +188,6 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
         entry->clt_id.view_id = (type != P_NOP)?clt_id->view_id:0;
         entry->clt_id.req_id = (type != P_NOP)?clt_id->req_id:0;
 
-        SYS_LOG(comp, "storing view id is  %"PRIu32", req id %"PRIu32", entry addr is %p, end is %"PRIu64"\n", 
-		next.view_id, next.req_id, (void*)entry, SRV_DATA->log->end);
         request_record* record_data = (request_record*)((char*)entry + offsetof(dare_log_entry_t, data_size));
 
         if(store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data))
@@ -216,14 +213,10 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
 
             rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
             rm.rkey = ep->rc_ep.rmt_mr.rkey;
-            SYS_LOG(comp, "sending post to %"PRIu32", remote addr %p, view id is %"PRIu32", req id %"PRIu32", \
-                           type is %d, data is (%s), bip is %"PRIu64"\n", i, (void*)rm.raddr, next.view_id, next.req_id, type, (char*)data, bit_map);
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags[i], poll_completion[i]);
+            SYS_LOG(ev_mgr, "post send finished\n");
         }
-#ifdef MEASURE_LATENCY
-        clock_add(&c_k);
-#endif
 
 recheck:
         for (i = 0; i < MAX_SERVER_COUNT; i++) {
@@ -233,8 +226,7 @@ recheck:
             }
         }
         if (reached_quorum(bit_map, comp->group_size)) {
-            SYS_LOG(comp, "reached quorum, view id is %"PRIu32", req id %"PRIu32", type is %d, data is (%s), \
-                           bip is %"PRIu64"\n", next.view_id, next.req_id, type, (char*)data, bit_map);
+            SYS_LOG(comp, "quorum reached\n");
             //TODO: do we need the lock here?
             while (entry->msg_vs.req_id > comp->highest_committed_vs->req_id + 1);
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
@@ -271,7 +263,6 @@ void *handle_accept_req(void* arg)
     dare_log_entry_t* entry;
 
     //set_affinity(1);
-    SYS_LOG(comp, "launching replica thread. sys log is %d", comp->sys_log);
 
     for (;;)
     {
@@ -283,13 +274,15 @@ void *handle_accept_req(void* arg)
 
             if (entry->data_size != 0)
             {
-                SYS_LOG(comp, "match get view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu, entry point %p\n", 
-                               entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size, (void*)entry);
                 char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
                 if (*dummy == DUMMY_END) // atmoic opeartion
                 {
-                    SYS_LOG(comp, "found view %"PRIu32", req id is %"PRIu32", type is %d, size is %zu\n",
-                                   entry->msg_vs.view_id , entry->msg_vs.req_id, entry->type, entry->data_size);
+                    SYS_LOG(comp, "Handle accept req\n");
+#ifdef MEASURE_LATENCY
+                    clock_handler c_k;
+                    clock_init(&c_k);
+                    clock_add(&c_k);
+#endif
                     if(entry->msg_vs.view_id < comp->cur_view->view_id){
                     // TODO
                     //goto reloop;
@@ -311,6 +304,9 @@ void *handle_accept_req(void* arg)
 
                     store_record(comp->db_ptr, sizeof(record_no), &record_no, REQ_RECORD_SIZE(record_data) - 1, record_data);
 
+#ifdef MEASURE_LATENCY
+                    clock_add(&c_k);
+#endif
                     SRV_DATA->log->tail = SRV_DATA->log->end;
                     SRV_DATA->log->end += log_entry_len(entry);
                     uint32_t my_id = *comp->node_id;
@@ -355,15 +351,16 @@ void *handle_accept_req(void* arg)
                     {
                         start = vstol(comp->highest_committed_vs)+1;
                         end = vstol(&entry->req_canbe_exed);
-                        SYS_LOG(comp, "start is %"PRIu64", end is  %"PRIu64"\n", start, end);
                         for(index = start; index <= end; index++)
                         {
                             comp->ucb(index,comp->up_para);
-                            SYS_LOG(comp, "finish index %"PRIu64"\n", index);
                         }
                         *(comp->highest_committed_vs) = entry->req_canbe_exed;
                     }
-                    SYS_LOG(comp, "before leaving..... %d, SRV_DATA->log->end is %"PRIu64"\n", entry->msg_vs.view_id, SRV_DATA->log->end);
+#ifdef MEASURE_LATENCY
+                    clock_add(&c_k);
+                    clock_display(comp->sys_log_file, &c_k);
+#endif
                 }   
             }
         }

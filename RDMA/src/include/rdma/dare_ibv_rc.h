@@ -4,6 +4,7 @@
 #include <infiniband/verbs.h> /* OFED stuff */
 #include "dare_ibv.h"
 
+#define Q_DEPTH 8192
 #define S_DEPTH 4096
 #define S_DEPTH_ 4095
 

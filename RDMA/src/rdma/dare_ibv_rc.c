@@ -228,7 +228,7 @@ static int prepare_qp(uint32_t idx, struct cm_con_data_t *local_con_data)
 
     struct ibv_qp_init_attr qp_init_attr;
 
-    ep->rc_ep.rc_cq.cq = ibv_create_cq(IBDEV->ib_dev_context, IBDEV->rc_cqe, NULL, NULL, 0);
+    ep->rc_ep.rc_cq.cq = ibv_create_cq(IBDEV->ib_dev_context, Q_DEPTH + 1, NULL, NULL, 0);
     if (NULL == ep->rc_ep.rc_cq.cq) {
         error_return(1, log_fp, "Cannot create CQ\n");
     }

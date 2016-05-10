@@ -15,7 +15,7 @@ int mgr_read_config(struct event_manager_t* cur_node,const char* config_path){
         goto goto_config_error;
     }
 
-    if(group_size<=cur_node->node_id){
+    if(group_size <= cur_node->node_id){
         err_log("EVENT MANAGER : Invalid Node Id\n");
         goto goto_config_error;
     }

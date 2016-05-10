@@ -19,7 +19,7 @@ int consensus_read_config(node* cur_node,const char* config_path){
 		goto goto_config_error;
 	}
 
-	if(group_size<=cur_node->node_id){
+	if(group_size <= *cur_node->node_id){
 		err_log("CONSENSUS : Configuration Reading Error : Invalid Node Id.\n");
 		goto goto_config_error;
 	}
@@ -56,7 +56,7 @@ int consensus_read_config(node* cur_node,const char* config_path){
 		peer_pool[i].peer_address->sin_family =AF_INET;
 		inet_pton(AF_INET,peer_ipaddr,&peer_pool[i].peer_address->sin_addr);
 		peer_pool[i].peer_address->sin_port = htons(peer_port);
-		if(i==cur_node->node_id){
+		if(i==*cur_node->node_id){
 			config_setting_lookup_int(node_config,"sys_log",&cur_node->sys_log);
 			config_setting_lookup_int(node_config,"stat_log",&cur_node->stat_log);
 			const char* db_name;
@@ -84,7 +84,7 @@ int consensus_read_config(node* cur_node,const char* config_path){
 		goto goto_config_error;
 	}
 
-	config_setting_t *zoo_ele = config_setting_get_elem(zoo_config,cur_node->node_id);
+	config_setting_t *zoo_ele = config_setting_get_elem(zoo_config,*cur_node->node_id);
 	if(NULL==zoo_ele){
 		err_log("CONSENSUS : Cannot Find Current Node's Address Section.\n");
 		goto goto_config_error;

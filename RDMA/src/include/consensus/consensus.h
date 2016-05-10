@@ -10,7 +10,7 @@ struct node_t;
 struct consensus_component_t;
 
 typedef void (*user_cb)(db_key_type index,void* arg);
-typedef int (*up_check)(void* arg);
+typedef void (*up_check)(void* arg);
 typedef int (*up_get)(view_stamp clt_id, void* arg);
 
 typedef enum con_role_t{
@@ -18,7 +18,7 @@ typedef enum con_role_t{
     SECONDARY = 1,
 }con_role;
 
-struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,FILE*,int,int,
+struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t*,FILE*,int,int,
         const char*,void*,int,
         view*,view_stamp*,view_stamp*,view_stamp*,user_cb,up_check,up_get,void*);
 

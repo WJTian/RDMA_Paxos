@@ -25,8 +25,8 @@ static void rc_memory_dereg();
 static void rc_qp_destroy(dare_ib_ep_t* ep);
 static void rc_cq_destroy(dare_ib_ep_t* ep);
 static int rc_connect_server();
-static int sock_sync_data(int sock, int xfer_size, char *local_data, char *remote_data);
-static int connect_qp(int sock);
+static int connect_qp(struct cm_con_data_t remote_con_data, uint32_t idx);
+static int prepare_qp(uint32_t idx, struct cm_con_data_t *local_con_data);
 static int rc_qp_init_to_rtr(dare_ib_ep_t *ep, uint16_t dlid, uint8_t *dgid);
 static int rc_qp_rtr_to_rts(dare_ib_ep_t *ep);
 static int rc_qp_reset_to_init( dare_ib_ep_t *ep);
@@ -82,7 +82,7 @@ static void rc_memory_dereg()
     
     if (NULL != IBDEV->lcl_mr) {
         rc = ibv_dereg_mr(IBDEV->lcl_mr);
-	//fprintf(stderr, "deregistering addr %p\n", IBDEV->lcl_mr->addr);
+        //fprintf(stderr, "deregistering addr %p\n", IBDEV->lcl_mr->addr);
         if (0 != rc) {
             rdma_error(log_fp, "Cannot deregister memory");
         }
@@ -97,7 +97,6 @@ static void rc_qp_destroy(dare_ib_ep_t* ep)
     if (NULL == ep) return;
 
     rc = ibv_destroy_qp(ep->rc_ep.rc_qp.qp);
-    //fprintf(stderr, "rc_qp_destroy ret is %d\n", rc);
     if (0 != rc) {
         rdma_error(log_fp, "ibv_destroy_qp failed because %s\n", strerror(rc));
     }
@@ -112,109 +111,100 @@ static void rc_cq_destroy(dare_ib_ep_t* ep)
     if (NULL == ep) return;
 
     rc = ibv_destroy_cq(ep->rc_ep.rc_cq.cq);
-    //fprintf(stderr, "rc_cq_destroy ret is %d\n", rc);
     if (0 != rc) {
         rdma_error(log_fp, "ibv_destroy_cq failed because %s\n", strerror(rc));
     }
     ep->rc_ep.rc_cq.cq = NULL;
 }
 
-static int rc_connect_server()
-{
-    uint32_t i, count = SRV_DATA->config.idx;
-    int rc = 1, sockfd = -1;
-    for (i = 0; count > 0; i++)
-    {
-        sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd < 0)
-        {
-            fprintf(stderr, "ERROR opening socket\n");
-            goto rc_connect_server_exit;
-        }
-        if (i == SRV_DATA->config.idx)
-            continue;
-        while (connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[i].peer_address, sizeof(struct sockaddr_in)) < 0);
-        if (connect_qp(sockfd))
-        {
-            fprintf(stderr, "failed to connect QPs\n");
-            goto rc_connect_server_exit;
-        }
-        if (close(sockfd))
-        {
-            fprintf(stderr, "failed to close socket\n");
-            goto rc_connect_server_exit;
-        }
-        count--;
-    }
-
+void* event(void* arg)
+{   
     struct sockaddr_in clientaddr;
     socklen_t clientlen = sizeof(clientaddr);
-    int newsockfd = -1;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    // after restore: Cannot assign requested address
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = SRV_DATA->config.servers[*SRV_DATA->config.idx].peer_address->sin_port;;
+    
     int opt_on = 1;
-    int opt_ret = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_on, sizeof(opt_on));
-    if (-1 ==opt_ret){
-        perror("Try SO_REUSEADDR failed, but program will continue to work.");
-    }
-    if (bind(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->config.idx].peer_address, sizeof(struct sockaddr_in)) < 0)
-    {
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_on, sizeof(opt_on));
+
+    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr_in)) < 0)
         perror ("ERROR on binding");
-        goto rc_connect_server_exit;
-    }
     listen(sockfd, 5);
 
-    count = SRV_DATA->config.cid.size - SRV_DATA->config.idx;
-    while (count > 1)
+    for (;;)
     {
-        newsockfd = accept(sockfd, (struct sockaddr *)&clientaddr, &clientlen);
-        if (connect_qp(newsockfd))
-        {
-            fprintf(stderr, "failed to connect QPs\n");
-            goto rc_connect_server_exit;
-        }
-        if (close(newsockfd))
-        {
-            fprintf(stderr, "failed to close socket\n");
-            goto rc_connect_server_exit;
-        }
-        count--;    
-    }
-    if (close(sockfd))
-    {
-        fprintf(stderr, "failed to close socket\n");
-        goto rc_connect_server_exit;
-    }
+        //if (*SRV_DATA->config.idx == SRV_DATA->cur_view->leader_id) // This is a waste of resources for the replica thread
+        //{
+            int newsockfd = original_accept(sockfd, (struct sockaddr *)&clientaddr, &clientlen);
+            struct cm_con_data_t remote_data, local_data;
+            int read_bytes = 0, total_read_bytes = 0;
+            int xfer_size = sizeof(struct cm_con_data_t);
+            while(total_read_bytes < xfer_size) {
+                read_bytes = original_read(newsockfd, &remote_data, xfer_size);
+                if(read_bytes > 0)
+                    total_read_bytes += read_bytes;
+            }
 
-    rc = 0;
-rc_connect_server_exit:
-    return rc;
+            if (ntohl(remote_data.type) == JOIN){
+                prepare_qp(ntohl(remote_data.idx), &local_data);
+                original_write(newsockfd, &local_data, sizeof(struct cm_con_data_t));
+                connect_qp(remote_data, ntohl(remote_data.idx));
+            } else if (ntohl(remote_data.type) == DESTROY)
+            {
+                uint32_t idx = ntohl(remote_data.idx);
+                dare_ib_ep_t* ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
+                rc_qp_destroy(ep);    
+                rc_cq_destroy(ep);
+                ep->rc_connected = 0;
+            }
+
+            if (original_close(newsockfd))
+                fprintf(stderr, "failed to close socket\n");
+        //}
+    }
 }
 
-static int sock_sync_data(int sock, int xfer_size, char *local_data, char *remote_data) {
-    int rc;
-    int read_bytes = 0;
-    int total_read_bytes = 0;
-    rc = write(sock, local_data, xfer_size);
-    if(rc < xfer_size)
-        fprintf(stderr, "Failed writing data during sock_sync_data\n");
-    else
-        rc = 0;
-    while(!rc && total_read_bytes < xfer_size) {
-        read_bytes = read(sock, remote_data, xfer_size);
-        if(read_bytes > 0)
-            total_read_bytes += read_bytes;
-        else
-            rc = read_bytes;
-    }
-    return rc;
-}
-
-static int connect_qp(int sock)
+static int rc_connect_server()
 {
-    struct cm_con_data_t local_con_data;
-    struct cm_con_data_t remote_con_data;
-    struct cm_con_data_t tmp_con_data;
+    if (*SRV_DATA->config.idx != SRV_DATA->cur_view->leader_id)
+    {
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+        if (sockfd < 0)
+            fprintf(stderr, "ERROR opening socket\n");
+
+        connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->cur_view->leader_id].peer_address, sizeof(struct sockaddr_in));
+        struct cm_con_data_t remote_data, local_data;
+        local_data.type = htonl(JOIN);
+        prepare_qp(SRV_DATA->cur_view->leader_id, &local_data);
+        original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));
+
+        int read_bytes = 0, total_read_bytes = 0;
+        int xfer_size = sizeof(struct cm_con_data_t);
+        while(total_read_bytes < xfer_size) {
+            read_bytes = original_read(sockfd, &remote_data, xfer_size);
+            if(read_bytes > 0)
+                total_read_bytes += read_bytes;
+        }
+        if (connect_qp(remote_data, SRV_DATA->cur_view->leader_id))
+            fprintf(stderr, "failed to connect QPs\n");
+        if (original_close(sockfd))
+            fprintf(stderr, "failed to close socket\n");
+    }
+
+    pthread_t cm_thread;
+    pthread_create(&cm_thread, NULL, &event, NULL);
+
+    return 0;
+}
+
+static int prepare_qp(uint32_t idx, struct cm_con_data_t *local_con_data)
+{
     int rc = 0;
     union ibv_gid my_gid;
 
@@ -230,54 +220,52 @@ static int connect_qp(int sock)
     else
         memset(&my_gid, 0, sizeof my_gid);
 
-    local_con_data.idx = htonl(SRV_DATA->config.idx);
-    local_con_data.log_mr.raddr = htonll((uintptr_t)IBDEV->lcl_mr->addr);
-    local_con_data.log_mr.rkey = htonl(IBDEV->lcl_mr->rkey);
+    dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
+
+    local_con_data->idx = htonl(*SRV_DATA->config.idx);
+    local_con_data->log_mr.raddr = htonll((uintptr_t)IBDEV->lcl_mr->addr);
+    local_con_data->log_mr.rkey = htonl(IBDEV->lcl_mr->rkey);
 
     struct ibv_qp_init_attr qp_init_attr;
-    struct ibv_qp *tmp_qp;
-    struct ibv_cq *tmp_cq;
 
-    tmp_cq = ibv_create_cq(IBDEV->ib_dev_context, IBDEV->rc_cqe, NULL, NULL, 0);
-    if (NULL == tmp_cq) {
+    ep->rc_ep.rc_cq.cq = ibv_create_cq(IBDEV->ib_dev_context, Q_DEPTH + 1, NULL, NULL, 0);
+    if (NULL == ep->rc_ep.rc_cq.cq) {
         error_return(1, log_fp, "Cannot create CQ\n");
     }
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     qp_init_attr.qp_type = IBV_QPT_RC;
-    qp_init_attr.send_cq = tmp_cq;
-    qp_init_attr.recv_cq = tmp_cq;
+    qp_init_attr.send_cq = ep->rc_ep.rc_cq.cq;
+    qp_init_attr.recv_cq = ep->rc_ep.rc_cq.cq;
     qp_init_attr.cap.max_inline_data = IBDEV->rc_max_inline_data;
     qp_init_attr.cap.max_send_sge = 1;  
     qp_init_attr.cap.max_recv_sge = 1;
     qp_init_attr.cap.max_recv_wr = 1;
-    qp_init_attr.cap.max_send_wr = IBDEV->rc_max_send_wr;;
-    tmp_qp = ibv_create_qp(IBDEV->rc_pd, &qp_init_attr);
-    if (NULL == tmp_qp) {
+    qp_init_attr.cap.max_send_wr = IBDEV->rc_max_send_wr;
+    ep->rc_ep.rc_qp.qp = ibv_create_qp(IBDEV->rc_pd, &qp_init_attr);
+    if (NULL == ep->rc_ep.rc_qp.qp) {
         error_return(1, log_fp, "Cannot create QP\n");
     }
 
-    local_con_data.qpns = htonl(tmp_qp->qp_num);
+    local_con_data->qpns = htonl(ep->rc_ep.rc_qp.qp->qp_num);
 
-    local_con_data.lid = htons(IBDEV->lid);
-    memcpy(local_con_data.gid, &my_gid, 16);
+    local_con_data->lid = htons(IBDEV->lid);
+    memcpy(local_con_data->gid, &my_gid, 16);
     fprintf(stdout, "\nLocal LID = 0x%x\n", IBDEV->lid);
 
-    if (sock_sync_data(sock, sizeof(struct cm_con_data_t), (char*)&local_con_data, (char*)&tmp_con_data))
-    {
-        fprintf(stderr, "failed to exchange connection data between sides\n");
-        rc = 1;
-        goto connect_qp_exit;
-    }
+    return rc;
+}
 
-    remote_con_data.lid = ntohs(tmp_con_data.lid);
-    memcpy(remote_con_data.gid, tmp_con_data.gid, 16);
-    uint32_t idx = ntohl(tmp_con_data.idx);
-
+static int connect_qp(struct cm_con_data_t tmp_con_data, uint32_t idx)
+{
+    int rc = 0;
+    struct cm_con_data_t remote_con_data;
     dare_ib_ep_t *ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
-
     ep->rc_ep.rmt_mr.raddr = ntohll(tmp_con_data.log_mr.raddr);
     ep->rc_ep.rmt_mr.rkey = ntohl(tmp_con_data.log_mr.rkey);
     ep->rc_ep.rc_qp.qpn = ntohl(tmp_con_data.qpns);
+
+    remote_con_data.lid = ntohs(tmp_con_data.lid);
+    memcpy(remote_con_data.gid, tmp_con_data.gid, 16);
 
     fprintf(stderr, "Node id = %"PRIu32"\n", idx);
     fprintf(stdout, "Remote LOG address = 0x%"PRIx64"\n", ep->rc_ep.rmt_mr.raddr);
@@ -291,9 +279,6 @@ static int connect_qp(int sock)
         uint8_t *p = remote_con_data.gid;
         fprintf(stdout, "Remote GID = %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
     }
-
-    ep->rc_ep.rc_qp.qp = tmp_qp;
-    ep->rc_ep.rc_cq.cq = tmp_cq;
 
     rc = rc_qp_reset_to_init(ep);
     if (rc)
@@ -319,7 +304,7 @@ static int connect_qp(int sock)
 
     ep->rc_connected = 1;
 
-    connect_qp_exit:
+connect_qp_exit:
     return rc;
 }
 
@@ -532,20 +517,29 @@ static int poll_cq(int max_wc, struct ibv_cq *cq)
 
 int rc_disconnect_server()
 {
-    //fprintf(stderr, "entering disconnect, group size is %"PRIu32"\n", SRV_DATA->config.cid.size);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+        fprintf(stderr, "ERROR opening socket\n");
+
+    connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->cur_view->leader_id].peer_address, sizeof(struct sockaddr_in));
+    struct cm_con_data_t local_data;
+    local_data.type = htonl(DESTROY);
+    local_data.idx = htonl(*SRV_DATA->config.idx);
+    original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));
+    original_close(sockfd);
+    
     uint32_t i;
     dare_ib_ep_t *ep;
     for (i = 0; i < SRV_DATA->config.cid.size; i++)
     {
         ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
-	//fprintf(stderr, "ndoe id %"PRIu32" is destroying %"PRIu32", ep->rc_connected is %d\n", SRV_DATA->config.idx, i, ep->rc_connected);
-        if (0 == ep->rc_connected || i == SRV_DATA->config.idx)
+        //fprintf(stderr, "ndoe id %"PRIu32" is destroying %"PRIu32", ep->rc_connected is %d\n", SRV_DATA->config.idx, i, ep->rc_connected);
+        if (0 == ep->rc_connected || i == *SRV_DATA->config.idx)
             continue;
 
-        ep->rc_connected = 0;  
-
-	rc_qp_destroy(ep);
-	rc_cq_destroy(ep);
+        ep->rc_connected = 0;
+        rc_qp_destroy(ep);
+        rc_cq_destroy(ep);
     }
     ibv_dealloc_pd(IBDEV->rc_pd);
 

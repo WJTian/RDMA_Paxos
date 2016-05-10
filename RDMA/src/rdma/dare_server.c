@@ -19,7 +19,8 @@ int dare_server_init(dare_server_input_t *input)
     
     /* Store input into server's data structure */
     data.input = input;
-
+    data.cur_view = input->cur_view;
+    
     /* Set log file handler */
     log_fp = input->log;
     

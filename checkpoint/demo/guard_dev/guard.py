@@ -69,7 +69,7 @@ STORE_UPPER="/tmp"
 # kill cmd 
 AIM_NAME="redis-server"
 KILL_CMD="pkill -9 %s"%(AIM_NAME)
-GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v ssh | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
+GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v ssh | grep -v sh | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
 # RSYNC cmd
 RSYNC_CMD=""
 # user name
@@ -152,6 +152,8 @@ def init():
 		argv = sys.argv
 		SELF_ID=int(argv[1])
 		AIM_NAME=argv[2]
+		KILL_CMD="pkill -9 %s"%(AIM_NAME)
+		GETPID_CMD="ps -ef | grep  %s | grep -v python | grep -v ssh | grep -v grep | awk '{print $2}' | head -n 1"%(AIM_NAME)
 		reset_pid()
 		RDMA_CFG=argv[3]
 	except Exception as e:
@@ -160,6 +162,7 @@ def init():
 	print "The guard has got self_id:%d, aim_pid:%d, and cfg file: %s"%(SELF_ID,AIM_PID,RDMA_CFG)
 	if os.path.exists(STORE_BASE):
 		shutil.rmtree(STORE_BASE)
+		os.mkdir(STORE_BASE)
 	else: # dir is not existed, we need create one
 		os.mkdir(STORE_BASE)
 	cfg_init(RDMA_CFG)
@@ -284,6 +287,8 @@ def generate_fd_index(tmpDir,AIM_PID):
 	1. to generate a fd_index.txt,
 	"""
 	print "[generate_fd_index] tmpDir: %s, AIM_PID:%d"%(tmpDir,AIM_PID)
+	if -1 == AIM_PID:
+		return -1
 	fd_index_path = os.path.join(tmpDir,FD_INDEX_NAME);
 	fd_index=None
 	try:
@@ -341,7 +346,7 @@ def pack_ext_res(tmpDir,AIM_PID):
 			print "[pack_ext_res] %s has not been existed. skipped."%(EXT_RES_DIR)			
 		return 0
 	except Exception as e:
-		print "[pack_ext_res] %s failed to be stored. error:%s"%(EXT_RES_DIR,str(e))
+		print "[pack_ext_res] %s failed to be stored.%s"%(EXT_RES_DIR,str(e))
 		return -1
 
 def unpack_ext_res(tmpDir):
@@ -418,7 +423,7 @@ def inner_checkpoint(node_id,round_id):
 			print "[T generate_fd_index] %f"%(ed_t - st_t)	
 		#remove --shell-job
 		#remove --leave-running
-		cmd="/sbin/criu dump -v4 -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
+		cmd="/sbin/criu dump -v4 --file-locks -o /tmp/criu.dump.log -D %s -t %d"%(tmpDir,AIM_PID)
 		print "[inner_checkpoint]cmd: %s"%(cmd)
 		st_t = time.clock()
 		retcode = subprocess.call(cmd,shell=True)
@@ -475,6 +480,7 @@ def inner_restore(node_id,round_id):
 	st_re = time.clock()
 	print "[inner_restore] criu will be used for restoring at machine %d, at round %d"%(node_id,round_id)
 	# mkdir dump
+	sys.stdout.flush()
 	tmpDir = None
 	currZip = getCurrBaseName()+".zip"
 	print "[inner_restore] find current checkpoint file %s"%(currZip)
@@ -500,7 +506,7 @@ def inner_restore(node_id,round_id):
 		# Before criu restore, fd files and external files need to be replaced.
 		unpack_ext_res(tmpDir)
 		# remove --shell-job
-		cmd="/sbin/criu restore -v4 -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
+		cmd="/sbin/criu restore -v4 --file-locks -o /tmp/criu.restore.log -d -D %s"%(tmpDir)
 		print "[inner_restore]cmd: %s"%(cmd)
 		st_t = time.clock()
 		retcode = subprocess.call(cmd,shell=True)

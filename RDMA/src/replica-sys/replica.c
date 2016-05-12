@@ -70,7 +70,8 @@ static int check_leader(view* cur_view)
     for (i = 0; i < children_list->count; ++i)
     {
         char *zdata_buf = malloc(ZDATALEN * sizeof(char));
-
+        memset((void*)zdata_buf, 0, ZDATALEN * sizeof(char));
+        
         char node_path[64];
         get_node_path(children_list->data[i], node_path);
 
@@ -85,39 +86,11 @@ static int check_leader(view* cur_view)
 
         free(zdata_buf);
     }
-
-    uint32_t j;
-    dare_ib_ep_t *ep;
-    for (j = 0; j < MAX_SERVER_COUNT; j++)
-    {
-        flag = 0;
-        ep = (dare_ib_ep_t*)SRV_DATA->config.servers[j].ep;
-        for (i = 0; i < children_list->count; i++)
-        {
-            if (j == znodes[i].node_id)
-                flag = 1;
-        }
-
-        if (flag == 1)
-            ep->rc_connected = 1;
-        else
-            ep->rc_connected = 0;
-    }
-
+    
     qsort((void*)&znodes, children_list->count, sizeof(struct znode), (compfn)compare_path);
 
     cur_view->leader_id = znodes[0].node_id;
 
-    if (cur_view->leader_id == SRV_DATA->config.idx)
-    {
-        fprintf(stderr, "I am the leader\n");
-        //recheck
-    }else{
-        fprintf(stderr, "I am a follower\n");
-        // RDMA read
-        // update view
-        // zoo_set
-    }
     free(children_list);
     return 0;
 }
@@ -139,7 +112,7 @@ void zoo_wget_children_watcher(zhandle_t *wzh, int type, int state, const char *
     }
 }
 
-int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port)
+int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port, node_id_t* node_id)
 {
 	int rc;
 	char zoo_host_port[32];
@@ -153,14 +126,13 @@ int start_zookeeper(view* cur_view, int *zoo_fd, int zoo_port)
     *zoo_fd = fd;
 
     char str[6];
-    sprintf(str, "%"PRIu32"", SRV_DATA->config.idx);
+    sprintf(str, "%"PRIu32"", *node_id);
     rc = zoo_create(zh, "/election/guid-n_", str, strlen(str), &ZOO_OPEN_ACL_UNSAFE, ZOO_SEQUENCE|ZOO_EPHEMERAL, NULL, 0);
     if (rc)
-    {
         fprintf(stderr, "Error %d for zoo_create\n", rc);
-    }
 
     check_leader(cur_view);
+
     rc = zoo_wget_children(zh, "/election", zoo_wget_children_watcher, (void*)cur_view, NULL);
     if (rc)
     {
@@ -179,45 +151,50 @@ int disconnect_zookeeper()
     return rc;
 }
 
-int launch_replica_thread(node* my_node, list* excluded_fds, list* excluded_threads)
+void launch_zoo(node* my_node, list* excluded_fds)
 {
-    static int *zoo_fd;
-	int rc = 0;
+    int *zoo_fd = (int*)malloc(sizeof(int));
+
 	my_node->cur_view.view_id = 1;
     my_node->cur_view.req_id = 0;
     my_node->cur_view.leader_id = UNKNOWN_LEADER;
 
-    zoo_fd = (int*)malloc(sizeof(int));
-    start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port);
+    start_zookeeper(&my_node->cur_view, zoo_fd, my_node->zoo_port, my_node->node_id);
     listAddNodeTail(excluded_fds, (void*)zoo_fd);
-	if (my_node->consensus_comp == NULL)
-	{
-	    fprintf(stderr, "init consensus comp is wrong\n");
-	    exit(1);
-	}
-	if (pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp) != 0)
-		rc = 1;
+}
+
+int launch_rdma(node* my_node)
+{
+    int rc = 0;
+    dare_server_input_t input = {
+        .log = stdout,
+        .peer_pool = my_node->peer_pool,
+        .group_size = my_node->group_size,
+        .server_idx = my_node->node_id,
+        .cur_view = &my_node->cur_view
+    };
+
+    if (0 != dare_server_init(&input)) {
+        err_log("CONSENSUS MODULE : Cannot init dare\n");
+        rc = 1;
+    }
+    return rc;
+}
+
+int launch_replica_thread(node* my_node, list* excluded_threads)
+{
+    int rc = 0;
+    if (pthread_create(&my_node->rep_thread,NULL,handle_accept_req,my_node->consensus_comp) != 0)
+        rc = 1;
     pthread_t *replica_thread = (pthread_t*)malloc(sizeof(pthread_t));
     *replica_thread = my_node->rep_thread;
     listAddNodeTail(excluded_threads, (void*)replica_thread);
     return rc;
 }
 
-int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_type index,void* arg), int (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
+int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_type index,void* arg), void (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
 
     int flag = 1;
-
-    dare_server_input_t input = {
-        .log = stdout,
-        .peer_pool = my_node->peer_pool,
-        .group_size = my_node->group_size,
-        .server_idx = my_node->node_id
-    };
-
-    if (0 != dare_server_init(&input)) {
-        err_log("CONSENSUS MODULE : Cannot init dare\n");
-        goto initialize_node_exit;
-    }
 
     int build_log_ret = 0;
     if(log_path==NULL){
@@ -235,7 +212,7 @@ int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_
             char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
             memset(sys_log_path,0,sizeof(char)*strlen(log_path)+50);
             if(NULL!=sys_log_path){
-                sprintf(sys_log_path,"%s/node-%u-consensus-sys.log",log_path,my_node->node_id);
+                sprintf(sys_log_path,"%s/node-%u-consensus-sys.log",log_path,*my_node->node_id);
                 my_node->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
             }
@@ -276,7 +253,7 @@ uint32_t get_group_size(node* my_node)
     return my_node->group_size;
 }
 
-node* system_initialize(node_id_t node_id,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), int(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
+node* system_initialize(node_id_t* node_id,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), void(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));

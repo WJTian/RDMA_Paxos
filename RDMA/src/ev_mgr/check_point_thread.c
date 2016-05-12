@@ -18,6 +18,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/stat.h> 
+#include <fcntl.h>
 
 #define UNIX_SOCK_PATH "/tmp/checkpoint.server.sock"
 #define UNIX_CMD_disconnect "disconnect"
@@ -33,15 +35,16 @@ void accept_error_cb(struct evconnlistener *listener, void *ctx){
 void* call_disconnect_start(void *argv){
 	debug_log("[check point] disconnct_inner() is called at a new thread: %lu\n",(unsigned long)pthread_self());
 	int ret = disconnct_inner();
-	debug_log("[check point] disconnct_inner() is finished %lu\n",(unsigned long)pthread_self());
+	debug_log("[check point] disconnct_inner() is finished and returned(%d) %lu\n",ret, (unsigned long)pthread_self());
 	return NULL;
 }
 void* call_reconnect_start(void * argv){
-    debug_log("[check point] reconnect_inner() is called at a new thread: %lu\n",(unsigned long)pthread_self());
-    int ret = reconnect_inner();
-    debug_log("[check point] reconnect_inner() is finished %lu\n",(unsigned long)pthread_self());
+    debug_log("[check point] reconnect_inner_set_flag() is called at a new thread: %lu\n",(unsigned long)pthread_self());
+    int ret = reconnect_inner_set_flag();
+    debug_log("[check point] reconnect_inner_set_flag() is finished and returned(%d) %lu\n",ret, (unsigned long)pthread_self());
     return NULL;
 }
+#define RE_DBG_MSG "reconnect is called.\n\n"
 void unix_read_cb(struct bufferevent *bev, void *ctx){
         struct evbuffer *input = bufferevent_get_input(bev);
         struct evbuffer *output = bufferevent_get_output(bev);
@@ -50,25 +53,44 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         data = malloc(len);
         evbuffer_copyout(input, data, len);
         debug_log("[check point] read data:#%s#\n",data);
-        char* pos = strstr(data,UNIX_CMD_disconnect);
+
+        int dbg_fd = open("/tmp/re.dbg.log",O_RDWR|O_CREAT|O_SYNC|O_TRUNC,0777);
+        if (-1 != dbg_fd){
+            write(dbg_fd,data,len);
+            char buff[512];
+            sprintf(buff,"\npid: %d, thread id:%lu\n",getpid(),(unsigned long)pthread_self());
+            write(dbg_fd,buff,strlen(buff));
+        }
+        int dis_cmp = strncmp(data,UNIX_CMD_disconnect,strlen(UNIX_CMD_disconnect));
+        int re_cmp = strncmp(data,UNIX_CMD_reconnect,strlen(UNIX_CMD_reconnect));
         int ret=0;
-        if (pos){ // got a command
+        if (0==dis_cmp){ // got a command
             debug_log("[check point] I will call disconnct_inner(). In a new thread to avoid deadloop\n");
             pthread_t thread_id;
             ret=pthread_create(&thread_id,NULL,&call_disconnect_start,NULL);
     		if (ret){ // On success, pthread_create() returns 0
     			debug_log("[check point] call disconnct_inner() in a new thread failed. err:%d\n", ret);	
     		}
-        }else{// try other commands
-            pos = strstr(data,UNIX_CMD_reconnect);
-            if (pos){
-                debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
-                pthread_t thread_id;
-                ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);
-                if (ret){ // On success, pthread_create() returns 0
-                    debug_log("[check point] call reconnect_inner() in a new thread failed. err:%d\n", ret);    
-                }                
+        }
+        if (0==re_cmp){// try other commands
+            debug_log("[check point] I will call reconnect_inner() in a new thread.\n");
+            pthread_t thread_id;
+            ret=pthread_create(&thread_id,NULL,&call_reconnect_start,NULL);
+            if (ret){ 
+                debug_log("[check point] call reconnect_inner_set_flag() in a new thread failed. err:%d\n", ret);    
+                if (-1!=dbg_fd){
+                    char* dbg_msg="\reconnect_inner_set_flag error\n";
+                    write(dbg_fd,dbg_msg,strlen(dbg_msg));
+                }               
+            }else{// On success, pthread_create() returns 0
+                if (-1!=dbg_fd){
+                    char* dbg_msg="\reconnect_inner_set_flag ok\n";
+                    write(dbg_fd,dbg_msg,strlen(dbg_msg));
+                }
             }
+        }
+        if (-1!=dbg_fd){
+            close(dbg_fd);
         }
         if (0==ret){
                 evbuffer_add_printf(output,"OK\n");

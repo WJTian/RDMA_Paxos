@@ -11,7 +11,11 @@
 #include <netinet/tcp.h>
 #include <sys/stat.h>
 
-volatile int g_checkpoint_flag = NO_DISCONNECTED;
+#include <sys/ioctl.h>
+#include <net/if.h>
+
+volatile int checkpoint_flag = NO_DISCONNECTED;
+volatile int restore_flag = 0;
 
 static int fdcomp(void *ptr, void *key)
 {
@@ -28,6 +32,21 @@ static int internal_threads(list *excluded_threads, pthread_t pid)
     return (listSearchKey(excluded_threads, (void*)&pid) != NULL) ? 1 : 0;
 }
 
+static uint32_t get_id()
+{
+    struct ifreq ifr;
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    ifr.ifr_addr.sa_family = AF_INET;
+
+    strncpy(ifr.ifr_name, "eth4", IFNAMSIZ-1);
+    ioctl(fd, SIOCGIFADDR, &ifr);
+    close(fd);
+    char *ip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
+    ip = ip + 8;
+    uint32_t id = atoi(ip) - 1;
+    return id;
+}
+
 int mgr_on_process_init(event_manager* ev_mgr)
 {   
     if (ev_mgr->excluded_fds != NULL)
@@ -42,10 +61,16 @@ int mgr_on_process_init(event_manager* ev_mgr)
     ev_mgr->excluded_threads = listCreate();
     ev_mgr->excluded_threads->match = &pidcomp;
 
-    int rc = launch_replica_thread(ev_mgr->con_node, ev_mgr->excluded_fds, ev_mgr->excluded_threads);
+    launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
+
+    int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )
-        fprintf(stderr, "EVENT MANAGER : Cannot create replica thread\n");
-    
+        fprintf(stderr, "EVENT MANAGER : Cannot start rdma\n");
+
+    rc = launch_replica_thread(ev_mgr->con_node, ev_mgr->excluded_threads);
+    if (rc != 0 )
+        fprintf(stderr, "EVENT MANAGER : Cannot launch replica thread\n");
+
     pthread_t check_point_thread;
     if (pthread_create(&check_point_thread, NULL, &check_point_thread_start, NULL) != 0) 
         fprintf(stderr, "EVENT MANAGER : Cannot create check point thread\n");
@@ -163,6 +188,7 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
     peer_array[leader_id].fd = fd;
     return peer_array;
 }
+
 // I do not agree with size_t ret, please change this name.
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
@@ -174,7 +200,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
         int store_output_rc = 0;
         store_output_rc = store_output(fd, buf, ret);
         // if store_output return 0 or -1, do not do next things.
-        if (store_output_rc<=0){
+        if (store_output_rc <= 0){
             return; // return directly
         }
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
@@ -189,10 +215,8 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
                 HASH_FIND_INT(ev_mgr->leader_tcp_map, &fd, socket_pair);
                 // [TODO] I remove this const to make it easy to pass compile, I will add it back.
                 dare_log_entry_t *log_entry_ptr = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
-                // [TODO] I need learn how to get group size from Cheng.
+                // [TODO] I need to learn how to get group size from Cheng.
                 int group_size = 3;
-                // [TODO] how to get all hash values of all nodes in the cluster from log_entry pointer p
-                // [TODO] This method should be reviewd by cheng.
                 // An array will be malloced and filled with hash value and node id
                 output_peer_t* peer_array = prepare_peer_array(fd, log_entry_ptr, leader_id, hash_index, group_size);
                 // make decision about who need to be restored based on the hash value.
@@ -337,80 +361,79 @@ do_action_send_exit:
     return;
 }
 
+int reconnect_inner_set_flag(){
+    restore_flag = 1;
+}
 
-//TODO reconnect_init
+static void reconnect_inner(event_manager* ev_mgr){
+    ev_mgr->node_id = get_id();
+    // currently we only have zookeeper fd
+    
+    listRelease(ev_mgr->excluded_fds);
+    ev_mgr->excluded_fds = NULL;
+    ev_mgr->excluded_fds = listCreate();
+    ev_mgr->excluded_fds->match = &fdcomp;
+    launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
+    uint32_t leader_id = get_leader_id(ev_mgr->con_node);
 
-// 0 is ok
-// reconnect works for cheng
-int reconnect_inner(){
-	return 0;
+    int rc = launch_rdma(ev_mgr->con_node);
+    if (rc != 0 )
+        fprintf(stderr, "EVENT MANAGER : Cannot start rdma\n");
+
+    restore_flag = 0;
 }
 
 
-//TODO declear g_checkpoint_flag
+int disconnct_inner()
+{ 
+    if (NO_DISCONNECTED == checkpoint_flag){
+        checkpoint_flag = DISCONNECTED_REQUEST;
 
-// which is called by libevent
-// will modify g_checkpoint_flag
-// will be in the same thread with libevent
-// 0 is ok
-// 1 is rejected
-// -1 is error
-int disconnct_inner(){ 
-    if (NO_DISCONNECTED == g_checkpoint_flag){ // safe to modify 
-        g_checkpoint_flag = DISCONNECTED_REQUEST;
-        // wait for approve
-        while (DISCONNECTED_REQUEST == g_checkpoint_flag){ // until the state will be changed.
-            // do thing.  
-        }
-        if (DISCONNECTED_APPROVE == g_checkpoint_flag){ // safe to disconnect
-	    fprintf(stderr,"disconnect is approved\n");
+        while (DISCONNECTED_REQUEST == checkpoint_flag); // waiting for approval
+
+        if (DISCONNECTED_APPROVE == checkpoint_flag)
+        {
+        	struct timeval tv;
+        	gettimeofday(&tv,0);
+        	fprintf(stdout,"%lu.%06lu:%s",tv.tv_sec,tv.tv_usec,"start to disconnect\n");
             int ret = rc_disconnect_server();
-            if (-1==ret){ // error
+            if (-1 == ret)
                 return ret;
-                //abort();
-            }
+
             ret = disconnect_zookeeper();
-            if (-1 == ret){
+            if (-1 == ret)
                 return ret;
-                // abort();
-            }
-            // disconnection is ok
-            g_checkpoint_flag = NO_DISCONNECTED;
+        	gettimeofday(&tv,0);
+        	fprintf(stdout,"%lu.%06lu:%s",tv.tv_sec,tv.tv_usec,"disconnect finished\n");
+            checkpoint_flag = NO_DISCONNECTED;
+
             return ret;
-        }else if (NO_DISCONNECTED == g_checkpoint_flag){ // rejection
+        } else if (NO_DISCONNECTED == checkpoint_flag){
             // rejected
             return 1;
-        }else{
-            // bug
         }
-    }else{
-
     }
     return 0;
 }
 
-static int check_point_condtion(void* arg)
+static void check_point_condtion(void* arg)
 {
-    event_manager* ev_mgr = arg;
-    int ret;
-    if (g_checkpoint_flag == NO_DISCONNECTED)
-    	ret = 0;
-    else if (g_checkpoint_flag == DISCONNECTED_REQUEST) {
+    if (checkpoint_flag == DISCONNECTED_REQUEST) {
+        event_manager* ev_mgr = arg;
         unsigned int connection_num = HASH_COUNT(ev_mgr->replica_tcp_map);
         if (connection_num == 0)
         {
-	    fprintf(stderr, "flag is set to be DISCONNECTED_APPROVE\n");
-            g_checkpoint_flag = DISCONNECTED_APPROVE;
-            ret = 1;
+            checkpoint_flag = DISCONNECTED_APPROVE;
+            while(restore_flag == 0);
+            SYS_LOG(ev_mgr, "start to reconnect\n");
+            reconnect_inner(ev_mgr);
+            SYS_LOG(ev_mgr, "reconnect finished\n");
         } else {
-	    fprintf(stderr, "flag is set to be NO_DISCONNECTED\n");
-            g_checkpoint_flag = NO_DISCONNECTED;
-            ret = 0;
+            SYS_LOG(ev_mgr, "flag is set to be NO_DISCONNECTED\n");
+            checkpoint_flag = NO_DISCONNECTED;
         }
-    } else {
-        // unknown
     }
-    return ret;
+    return;
 }
 
 static int get_mapping_fd(view_stamp clt_id, void*arg)
@@ -461,11 +484,11 @@ static void update_state(db_key_type index,void* arg){
             }
             do_action_close(retrieve_data->clt_id,arg);
             break;
-	case P_NOP:
-	    if(output!=NULL){
+        case P_NOP:
+            if(output!=NULL){
                 fprintf(output,"Operation: NOP.\n");
             }
-	    break; // nop is only for sending the close() consensus result to the replcias
+            break; // nop is only for sending the close() consensus result to the replicas
         default:
             break;
     }
@@ -538,7 +561,7 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     ev_mgr->replica_tcp_map = NULL;
     ev_mgr->leader_udp_map = NULL;
 
-    ev_mgr->con_node = system_initialize(node_id,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
+    ev_mgr->con_node = system_initialize(&ev_mgr->node_id,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");

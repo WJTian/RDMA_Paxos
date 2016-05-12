@@ -18,7 +18,8 @@ struct dare_log_entry_t{
 };
 typedef struct dare_log_entry_t dare_log_entry_t;
 
-#define LOG_SIZE  32000*PAGE_SIZE
+#define LOG_SIZE  16384*PAGE_SIZE
+
 struct dare_log_t
 {
     uint64_t head;

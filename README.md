@@ -9,7 +9,7 @@ OS: Ubuntu 14.04.02 64bit.
 1. Install depdendent libraries/tools:  
 `sudo apt-get install libxml2-dev`  
   
-2. ./apps/apache/mk  
+2. $RDMA_ROOT/apps/apache/mk  
 php-cgi: install-php/bin/php-cgi  
   
 **Install the dependencies for the program**  
@@ -18,6 +18,6 @@ subdir.mk: `-I"$(ROOT_DIR)/../.local/include"`
 makefile: `-L"$(ROOT_DIR)/../.local/lib"`  
   
 **Set env vars in ~/.bashrc.**  
-`export LD_LIBRARY_PATH=/home/wangcheng/Downloads/RDMA_Paxos-master/RDMA/.local/lib:$LD_LIBRARY_PATH`
+`export LD_LIBRARY_PATH=$RDMA_ROOT/RDMA/.local/lib:$LD_LIBRARY_PATH`
 
 

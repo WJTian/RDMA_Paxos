@@ -1,6 +1,4 @@
 /*
-* Author: Jingyu Yang
-* Date: April 23, 2016
 * Description: Output management
 */
 #include "../include/output/output.h"

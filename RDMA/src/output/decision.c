@@ -1,6 +1,4 @@
 /*
-Author: Jingyu
-Date: 	April 5, 2016
 Description: The function do_decision will consider the hashvalues from all nodes, then make a decision about whether to launch a restore process.
 */
 

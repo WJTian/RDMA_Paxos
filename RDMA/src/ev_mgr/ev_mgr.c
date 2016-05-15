@@ -163,9 +163,7 @@ mgr_on_close_exit:
     return;
 }
 
-// This function will malloc space for output_peer array.
-// please remember free it after use.
-output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, int group_size){
+output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint32_t leader_id, long hash_index, uint32_t group_size){
     
     // because rsm_op() returns when it reaches quorum
     
@@ -174,8 +172,9 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
     wait_for_reply.tv_nsec = 1000 * 5;
     nanosleep(&wait_for_reply, NULL);
     
-    output_peer_t* peer_array = (output_peer_t*)malloc(group_size*sizeof(output_peer_t));
-    for (int i=0;i<group_size;i++){
+    output_peer_t* peer_array = (output_peer_t*)malloc(group_size * sizeof(output_peer_t));
+    uint32_t i;
+    for (i = 0; i < group_size; i++){
         peer_array[i].leader_id = leader_id;
         peer_array[i].node_id = log_entry_ptr->ack[i].node_id;
         peer_array[i].hash = log_entry_ptr->ack[i].hash;
@@ -184,12 +183,11 @@ output_peer_t* prepare_peer_array(int fd, dare_log_entry_t *log_entry_ptr, uint3
     }
 
     peer_array[leader_id].hash = get_output_hash(fd, hash_index);
-    // I can get leader's fd only.
+
     peer_array[leader_id].fd = fd;
     return peer_array;
 }
 
-// I do not agree with size_t ret, please change this name.
 void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
 {
     if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
@@ -199,28 +197,27 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     {
         int store_output_rc = 0;
         store_output_rc = store_output(fd, buf, ret);
-        // if store_output return 0 or -1, do not do next things.
+        // if store_output() returns 0 or -1, return directly
         if (store_output_rc <= 0){
-            return; // return directly
+            return;
         }
         uint32_t leader_id = get_leader_id(ev_mgr->con_node);
-        // leader logic
         if (leader_id == ev_mgr->node_id)
         {
             long hash_index = determine_output(fd); 
             if (-1 != hash_index){
-                // to do output proposal with hash value at this hash_index
+                // do output proposal with hash value at this hash_index
 
                 leader_tcp_pair* socket_pair = NULL;
                 HASH_FIND_INT(ev_mgr->leader_tcp_map, &fd, socket_pair);
-                // [TODO] I remove this const to make it easy to pass compile, I will add it back.
+
                 dare_log_entry_t *log_entry_ptr = rsm_op(ev_mgr->con_node, sizeof(long), &hash_index, P_OUTPUT, &socket_pair->vs);
-                // [TODO] I need to learn how to get group size from Cheng.
-                int group_size = 3;
-                // An array will be malloced and filled with hash value and node id
+
+                uint32_t group_size = get_group_size(ev_mgr->con_node);
+
                 output_peer_t* peer_array = prepare_peer_array(fd, log_entry_ptr, leader_id, hash_index, group_size);
-                // make decision about who need to be restored based on the hash value.
-                // Cheng will pass a leader_id to indicate who is the leader.
+                // make decision about who needs to be restored based on the hash value.
+
                 do_decision(peer_array, group_size);
                 free(peer_array);
             }

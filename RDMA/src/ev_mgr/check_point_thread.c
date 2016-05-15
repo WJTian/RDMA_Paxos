@@ -2,9 +2,6 @@
 #include "../include/util/debug.h"
 #include "../include/ev_mgr/ev_mgr.h"
 // Unix socket echo server
-// copy from
-// https://www.pacificsimplicity.ca/blog/libevent-echo-server-tutorial
-
 
 #include <event2/listener.h>
 #include <event2/bufferevent.h>
@@ -94,7 +91,7 @@ void unix_read_cb(struct bufferevent *bev, void *ctx){
         }
         if (0==ret){
                 evbuffer_add_printf(output,"OK\n");
-        }else{ // error
+        }else{
                 evbuffer_add_printf(output,"ERR\n");
         }
 }

@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include "../include/consensus/consensus.h"
 #include "../include/consensus/consensus-msg.h"
 
@@ -10,7 +9,7 @@
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
 #define USE_SPIN_LOCK
-#define MEASURE_LATENCY
+//#define MEASURE_LATENCY
 
 #define DUMMY_END 'f'
 
@@ -215,7 +214,6 @@ dare_log_entry_t* leader_handle_submit_req(struct consensus_component_t* comp, s
             rm.rkey = ep->rc_ep.rmt_mr.rkey;
 
             post_send(i, entry, log_entry_len(entry), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, send_flags[i], poll_completion[i]);
-            SYS_LOG(comp, "post send finished\n");
         }
 
 recheck:
@@ -226,7 +224,6 @@ recheck:
             }
         }
         if (reached_quorum(bit_map, comp->group_size)) {
-            SYS_LOG(comp, "quorum reached\n");
             //TODO: do we need the lock here?
             while (entry->msg_vs.req_id > comp->highest_committed_vs->req_id + 1);
             comp->highest_committed_vs->req_id = comp->highest_committed_vs->req_id + 1;
@@ -262,7 +259,7 @@ void *handle_accept_req(void* arg)
     
     dare_log_entry_t* entry;
 
-    //set_affinity(1);
+    set_affinity(1);
 
     for (;;)
     {
@@ -277,7 +274,6 @@ void *handle_accept_req(void* arg)
                 char* dummy = (char*)((char*)entry + log_entry_len(entry) - 1);
                 if (*dummy == DUMMY_END) // atmoic opeartion
                 {
-                    SYS_LOG(comp, "Handle accept req\n");
 #ifdef MEASURE_LATENCY
                     clock_handler c_k;
                     clock_init(&c_k);

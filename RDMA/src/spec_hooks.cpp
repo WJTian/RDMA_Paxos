@@ -116,8 +116,7 @@ extern "C" pid_t fork(void)
 	pid_t ret = orig_fork();
 	if (ret == 0) // child process
 	{
-		fprintf(stderr, "creating internal threads\n");
-		// create replica thread and libevent thread
+		fprintf(stdout, "creating internal threads\n");
 		mgr_on_process_init(ev_mgr);
 	} else {
 		if (ret<0)
@@ -146,9 +145,7 @@ extern "C" int accept4(int socket, struct sockaddr *address, socklen_t *address_
 		struct stat sb;
 		fstat(ret, &sb);
 		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
-		{
 			mgr_on_accept(ret, ev_mgr);
-		}
 	}
 
 	return ret;
@@ -161,7 +158,7 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 	if (!orig_accept)
 		orig_accept = (orig_accept_type) dlsym(RTLD_NEXT, "accept");
 
-	/* Previously I think connect() can only successfully return only when the accept() on the server side is called.
+	/* Previously I thought connect() can only successfully return only when the accept() on the server side is called.
 	   That's why replica_on_accept() was invoked before orig_accept().
 	   Howevrer, actually there is no relationship between connect() and accept() */
 
@@ -172,9 +169,7 @@ extern "C" int accept(int socket, struct sockaddr *address, socklen_t *address_l
 		struct stat sb;
 		fstat(ret, &sb);
 		if ((sb.st_mode & S_IFMT) == S_IFSOCK)
-		{
 			mgr_on_accept(ret, ev_mgr);
-		}
 	}
 
 	return ret;

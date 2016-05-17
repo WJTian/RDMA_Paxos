@@ -82,7 +82,6 @@ static void rc_memory_dereg()
     
     if (NULL != IBDEV->lcl_mr) {
         rc = ibv_dereg_mr(IBDEV->lcl_mr);
-        //fprintf(stderr, "deregistering addr %p\n", IBDEV->lcl_mr->addr);
         if (0 != rc) {
             rdma_error(log_fp, "Cannot deregister memory");
         }
@@ -123,9 +122,9 @@ void* event(void* arg)
     socklen_t clientlen = sizeof(clientaddr);
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    // after restore: Cannot assign requested address
     struct sockaddr_in serv_addr;
     serv_addr.sin_family = AF_INET;
+    // after restore: Cannot assign requested address
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = SRV_DATA->config.servers[*SRV_DATA->config.idx].peer_address->sin_port;;
     
@@ -533,7 +532,6 @@ int rc_disconnect_server()
     for (i = 0; i < SRV_DATA->config.cid.size; i++)
     {
         ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
-        //fprintf(stderr, "ndoe id %"PRIu32" is destroying %"PRIu32", ep->rc_connected is %d\n", SRV_DATA->config.idx, i, ep->rc_connected);
         if (0 == ep->rc_connected || i == *SRV_DATA->config.idx)
             continue;
 

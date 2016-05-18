@@ -12,3 +12,6 @@
 `apt-get install tgt`  
 `apt-get install targetcli`  
 `apt-get install open-iscsi-utils open-iscsi`  
+###RDMA Verification
+Run the following command on one server (act as a server): `ib_send_bw -d mlx4_0 -i 1 -F --report_gbits`  
+Run the following command on the second server (act as a client): `ib_send_bw -d mlx4_0 -i 1 -F --report_gbits 10.22.1.1`

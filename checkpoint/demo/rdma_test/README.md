@@ -1,4 +1,4 @@
-##Mellanox OFED for Linux Installation## 
+## Mellanox OFED for Linux Installation
   
 1. Download MLNX_OFED at http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers.  
 2. Login to the installation machine as root.  
@@ -6,8 +6,8 @@
 4. Run the installation script. `/mnt/mlnxofedinstall --without-fw-update`.  
 5.  Run the `/usr/bin/hca_self_test.ofed` utility to verify whether or not the InfiniBand link is up.  
   
-##HowTo Enable, Verify and Troubleshoot RDMA##
-###RDMA Drivers###
+##HowTo Enable, Verify and Troubleshoot RDMA
+###RDMA Drivers
 `apt-get install libmlx4-1 infiniband-diags ibutils ibverbs-utils rdmacm-utils perftest`  
 `apt-get install tgt`  
 `apt-get install targetcli`  

@@ -122,9 +122,7 @@ extern "C" ssize_t recv(int sockfd, void *buf, size_t len, int flags)
   ssize_t ret = orig_recv(sockfd, buf, len, flags);
 
   if (consensus_comp->my_role == LEADER)
-  {
-    rsm_op(consensus_comp, buf, ret);
-  }
+  	rsm_op(consensus_comp, buf, ret);
 
   return ret;
 }

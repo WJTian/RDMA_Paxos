@@ -23,9 +23,6 @@ uint64_t vstol(view_stamp* vs);
 view_stamp ltovs(uint64_t);
 int view_stamp_comp(view_stamp* op1,view_stamp* op2);
 
-ssize_t original_write(int fd, const void *buf, size_t count);
-int original_close(int fildes);
-int original_accept(int socket, struct sockaddr *address, socklen_t *address_len);
-ssize_t original_read(int fd, void *buf, size_t count);
+ssize_t original_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 
 #endif 

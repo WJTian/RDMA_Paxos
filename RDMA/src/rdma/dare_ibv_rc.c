@@ -17,6 +17,9 @@ extern dare_ib_device_t *dare_ib_device;
 #define IBDEV dare_ib_device
 #define SRV_DATA ((dare_server_data_t*)dare_ib_device->udata)
 
+#define PORT_NUM 4444
+#define GROUP_ADDR "225.1.1.1"
+
 /* ================================================================== */
 
 static int rc_prerequisite();
@@ -117,54 +120,52 @@ static void rc_cq_destroy(dare_ib_ep_t* ep)
 }
 
 void* event(void* arg)
-{   
-    struct sockaddr_in clientaddr;
-    socklen_t clientlen = sizeof(clientaddr);
+{
+	struct ip_mreq mreq;
+    struct sockaddr_in client_addr;
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in serv_addr;
-    serv_addr.sin_family = AF_INET;
-    // after restore: Cannot assign requested address
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = SRV_DATA->config.servers[*SRV_DATA->config.idx].peer_address->sin_port;;
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    mreq.imr_multiaddr.s_addr = inet_addr(GROUP_ADDR);
+    mreq.imr_interface.s_addr = INADDR_ANY;
+    
+    client_addr.sin_family = AF_INET;
+    client_addr.sin_addr.s_addr = INADDR_ANY;
+    client_addr.sin_port = htons(PORT_NUM);
     
     int opt_on = 1;
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt_on, sizeof(opt_on));
 
-    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr_in)) < 0)
+    if (bind(sockfd, (struct sockaddr *)&clientaddr, sizeof(struct sockaddr)) < 0)
         perror ("ERROR on binding");
-    listen(sockfd, 5);
+
+    if (setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mreq, sizeof(mreq)) < 0)
+        perror ("ERROR on setsockopt");
+
+    socket_t addr_len = sizeof(client_addr);
 
     for (;;)
     {
-        //if (*SRV_DATA->config.idx == SRV_DATA->cur_view->leader_id) // This is a waste of resources for the replica thread
-        //{
-            int newsockfd = original_accept(sockfd, (struct sockaddr *)&clientaddr, &clientlen);
-            struct cm_con_data_t remote_data, local_data;
-            int read_bytes = 0, total_read_bytes = 0;
-            int xfer_size = sizeof(struct cm_con_data_t);
-            while(total_read_bytes < xfer_size) {
-                read_bytes = original_read(newsockfd, &remote_data, xfer_size);
-                if(read_bytes > 0)
-                    total_read_bytes += read_bytes;
-            }
+	    struct cm_con_data_t remote_data, local_data;
+	    ssize_t read_bytes = 0, total_read_bytes = 0;
+	    int xfer_size = sizeof(struct cm_con_data_t);
+	    while(total_read_bytes < xfer_size) {
+	        read_bytes = original_recvfrom(sockfd, (void*)&remote_data, xfer_size, 0, (struct sockaddr*)&clientaddr, &addr_len);
+	        if(read_bytes > 0)
+	            total_read_bytes += read_bytes;
+	    }
 
-            if (ntohl(remote_data.type) == JOIN){
-                prepare_qp(ntohl(remote_data.idx), &local_data);
-                original_write(newsockfd, &local_data, sizeof(struct cm_con_data_t));
-                connect_qp(remote_data, ntohl(remote_data.idx));
-            } else if (ntohl(remote_data.type) == DESTROY)
-            {
-                uint32_t idx = ntohl(remote_data.idx);
-                dare_ib_ep_t* ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
-                rc_qp_destroy(ep);    
-                rc_cq_destroy(ep);
-                ep->rc_connected = 0;
-            }
-
-            if (original_close(newsockfd))
-                fprintf(stderr, "failed to close socket\n");
-        //}
+	    if (ntohl(remote_data.type) == JOIN){
+	        prepare_qp(ntohl(remote_data.idx), &local_data);
+	        //original_write(newsockfd, &local_data, sizeof(struct cm_con_data_t));
+	        connect_qp(remote_data, ntohl(remote_data.idx));
+	    } else if (ntohl(remote_data.type) == DESTROY)
+	    {
+	        uint32_t idx = ntohl(remote_data.idx);
+	        dare_ib_ep_t* ep = (dare_ib_ep_t*)SRV_DATA->config.servers[idx].ep;
+	        rc_qp_destroy(ep);
+	        rc_cq_destroy(ep);
+	        ep->rc_connected = 0;
+	    }
     }
 }
 
@@ -172,21 +173,27 @@ static int rc_connect_server()
 {
     if (*SRV_DATA->config.idx != SRV_DATA->cur_view->leader_id)
     {
-        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    	struct sockaddr_in addr_dest;
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+        addr_dest.sin_family = AF_INET;
+        addr_dest.sin_addr.s_addr = inet_addr(GROUP_ADDR);
+        addr_dest.sin_port = htons(PORT_NUM);
+
+        int addr_len = sizeof(addr_dest);
 
         if (sockfd < 0)
             fprintf(stderr, "ERROR opening socket\n");
 
-        connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->cur_view->leader_id].peer_address, sizeof(struct sockaddr_in));
         struct cm_con_data_t remote_data, local_data;
         local_data.type = htonl(JOIN);
         prepare_qp(SRV_DATA->cur_view->leader_id, &local_data);
-        original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));
+        original_sendto(sockfd, &local_data, sizeof(struct cm_con_data_t), 0, (struct sockaddr*)addr_dest, addr_len);
 
         int read_bytes = 0, total_read_bytes = 0;
         int xfer_size = sizeof(struct cm_con_data_t);
         while(total_read_bytes < xfer_size) {
-            read_bytes = original_read(sockfd, &remote_data, xfer_size);
+            read_bytes = original_recvfrom(sockfd, &remote_data, xfer_size);
             if(read_bytes > 0)
                 total_read_bytes += read_bytes;
         }
@@ -520,11 +527,11 @@ int rc_disconnect_server()
     if (sockfd < 0)
         fprintf(stderr, "ERROR opening socket\n");
 
-    connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->cur_view->leader_id].peer_address, sizeof(struct sockaddr_in));
+    //connect(sockfd, (struct sockaddr *)SRV_DATA->config.servers[SRV_DATA->cur_view->leader_id].peer_address, sizeof(struct sockaddr_in));
     struct cm_con_data_t local_data;
     local_data.type = htonl(DESTROY);
     local_data.idx = htonl(*SRV_DATA->config.idx);
-    original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));
+    //original_write(sockfd, &local_data, sizeof(struct cm_con_data_t));
     original_close(sockfd);
     
     uint32_t i;

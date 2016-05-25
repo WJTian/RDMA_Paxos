@@ -17,11 +17,6 @@
 volatile int checkpoint_flag = NO_DISCONNECTED;
 volatile int restore_flag = 0;
 
-static int fdcomp(void *ptr, void *key)
-{
-    return (*(int*)ptr == *(int*)key) ? 1 : 0;
-}
-
 static int pidcomp(void *ptr, void *key)
 {
     return (*(pthread_t*)ptr == *(pthread_t*)key) ? 1 : 0;
@@ -48,20 +43,12 @@ static uint32_t get_id()
 }
 
 int mgr_on_process_init(event_manager* ev_mgr)
-{   
-    if (ev_mgr->excluded_fds != NULL)
-        listRelease(ev_mgr->excluded_fds);
-    ev_mgr->excluded_fds = NULL;
-    ev_mgr->excluded_fds = listCreate();
-    ev_mgr->excluded_fds->match = &fdcomp;
-
+{
     if (ev_mgr->excluded_threads != NULL)
         listRelease(ev_mgr->excluded_threads);
     ev_mgr->excluded_threads = NULL;
     ev_mgr->excluded_threads = listCreate();
     ev_mgr->excluded_threads->match = &pidcomp;
-
-    launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
 
     int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )
@@ -193,7 +180,7 @@ void mgr_on_check(int fd, const void* buf, size_t ret, event_manager* ev_mgr)
     if (internal_threads(ev_mgr->excluded_threads, pthread_self()))
         return;
     
-    if (ev_mgr->check_output && listSearchKey(ev_mgr->excluded_fds, (void*)&fd) == NULL)
+    if (ev_mgr->check_output)
     {
         int store_output_rc = 0;
         store_output_rc = store_output(fd, buf, ret);
@@ -263,7 +250,7 @@ void server_side_on_read(event_manager* ev_mgr, void *buf, size_t ret, int fd){
     {
         struct stat sb;
         fstat(fd, &sb);
-        if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0 && listSearchKey(ev_mgr->excluded_fds, &fd) == NULL)
+        if ((sb.st_mode & S_IFMT) == S_IFSOCK && ev_mgr->rsm != 0)
         {
             leader_tcp_pair* socket_pair = NULL;
             HASH_FIND_INT(ev_mgr->leader_tcp_map, &fd, socket_pair);
@@ -364,13 +351,7 @@ int reconnect_inner_set_flag(){
 
 static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->node_id = get_id();
-    // currently we only have zookeeper fd
-    
-    listRelease(ev_mgr->excluded_fds);
-    ev_mgr->excluded_fds = NULL;
-    ev_mgr->excluded_fds = listCreate();
-    ev_mgr->excluded_fds->match = &fdcomp;
-    launch_zoo(ev_mgr->con_node, ev_mgr->excluded_fds);
+
     uint32_t leader_id = get_leader_id(ev_mgr->con_node);
 
     int rc = launch_rdma(ev_mgr->con_node);
@@ -397,9 +378,6 @@ int disconnct_inner()
             if (-1 == ret)
                 return ret;
 
-            ret = disconnect_zookeeper();
-            if (-1 == ret)
-                return ret;
         	gettimeofday(&tv,0);
         	fprintf(stdout,"%lu.%06lu:%s",tv.tv_sec,tv.tv_usec,"disconnect finished\n");
             checkpoint_flag = NO_DISCONNECTED;

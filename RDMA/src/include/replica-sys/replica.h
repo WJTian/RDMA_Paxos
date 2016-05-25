@@ -21,8 +21,7 @@ dare_log_entry_t* rsm_op(struct node_t* my_node, size_t ret, void *buf, uint8_t 
 
 uint32_t get_leader_id(struct node_t* my_node);
 uint32_t get_group_size(struct node_t* my_node);
-int disconnect_zookeeper();
-void launch_zoo(struct node_t* my_node, list* excluded_fds);
+
 int launch_rdma(struct node_t* my_node);
 int launch_replica_thread(struct node_t*my_node, list* excluded_threads);
 

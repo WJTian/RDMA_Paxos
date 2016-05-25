@@ -53,7 +53,6 @@ typedef struct event_manager_t{
 
     db_key_type cur_rec;
 
-    list *excluded_fds;
     list *excluded_threads;
 
     struct node_t* con_node;
@@ -80,7 +79,6 @@ typedef enum check_point_state_t{
     DISCONNECTED_APPROVE=3,
 }check_point_state;
 
-// declare
 int disconnct_inner();
 int reconnect_inner_set_flag();
 

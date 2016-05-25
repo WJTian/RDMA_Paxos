@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "../include/consensus/consensus.h"
 #include "../include/consensus/consensus-msg.h"
 

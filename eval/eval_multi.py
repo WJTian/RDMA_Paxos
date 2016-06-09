@@ -296,15 +296,15 @@ if __name__ == "__main__":
         local_host_ip = os.popen('cat $RDMA_ROOT/apps/env/local_host').readline().replace("\n", "")
 
         local_host = username + "@" + local_host_ip
-        node_id_one = "0 "
-        remote_host_list = [username + "@" + remote_host_ip.replace("\n","") for remote_host_ip in os.popen('cat $RDMA_ROOT/apps/env/remote_hosts').readlines()]
+        #node_id_one = "0 "
+        remote_host_list = filter(None,[username + "@" + remote_host_ip.replace("\n","") for remote_host_ip in os.popen('cat $RDMA_ROOT/apps/env/remote_hosts').readlines()])
 
-        remote_hostone_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host1').readline().replace("\n", "")
-        remote_hostone = username + "@" + remote_hostone_ip
-        node_id_two = "1 "
-        remote_hosttwo_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host2').readline().replace("\n", "")
-        remote_hosttwo = username + "@" + remote_hosttwo_ip
-        node_id_thr = "2 "
+        # remote_hostone_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host1').readline().replace("\n", "")
+        # remote_hostone = username + "@" + remote_hostone_ip
+        # node_id_two = "1 "
+        # remote_hosttwo_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host2').readline().replace("\n", "")
+        # remote_hosttwo = username + "@" + remote_hosttwo_ip
+        # node_id_thr = "2 "
         test_host_ip = os.popen('cat $RDMA_ROOT/apps/env/test_host').readline().replace("\n", "")
         test_host = username + "@" + test_host_ip
     except KeyError as e:

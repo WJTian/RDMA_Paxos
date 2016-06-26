@@ -4,7 +4,6 @@
 
 #include "../include/rdma/dare_ibv.h"
 #include "../include/rdma/dare_server.h"
-#include <zookeeper.h>
 
 #include <sys/stat.h>
 

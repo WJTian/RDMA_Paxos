@@ -53,7 +53,7 @@ def processBench(config, bench):
     else:
         logger.error("No such compare option")
 
-    repeats = config.getint(bench, 'REPEATS')
+    #repeats = config.getint(bench, 'REPEATS')
     server_input = config.get(bench, 'SERVER_INPUT')
     server_kill = config.get(bench, 'SERVER_KILL')
     client_program = config.get(bench, 'CLIENT_PROGRAM')
@@ -79,11 +79,11 @@ def processBench(config, bench):
         #                 'ssh ' + remote_hostone + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n' +
         #                 'ssh ' + remote_hosttwo + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n')
         testscript.write('ssh ' + local_host + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n')
-        for host_id in range(1,server_count):
+        for host_id in range(1,host_count):
             testscript.write('ssh ' + remote_host_list[host_id-1] + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n')
 
     testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
-    for host_id in range(1, server_count):
+    for host_id in range(1, host_count):
         testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + server_kill + '"\n')
 
     # if server_count == 3:
@@ -95,7 +95,7 @@ def processBench(config, bench):
 
     testscript.write('ssh ' + local_host + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = ' + port + ';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
     testscript.write('ssh ' + local_host + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
-    for host_id in range(1, server_count):
+    for host_id in range(1, host_count):
         testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = ' + port + ';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
         testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
 
@@ -112,7 +112,7 @@ def processBench(config, bench):
 
     testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid","0") + server_program + ' ' + server_input + '"  \n' + 'sleep 2 \n')
     for host_id in range(1, server_count):
-        testscript.write('ssh -f ' + remote_host_list[host_id-1] + '  "' + hook_program.replace("myid",str(host_id)) + server_program + ' ' + server_input + '"  \n' + 'sleep 2 \n')
+        testscript.write('ssh -f ' + remote_host_list[(host_id-1)%(host_count-1)] + '  "' + hook_program.replace("myid",str(host_id)) + server_program + ' ' + server_input + '"  \n' + 'sleep 2 \n')
     testscript.write('sleep 2 \n')
 
     # if server_count == 3:
@@ -139,12 +139,12 @@ def processBench(config, bench):
     testscript.write('fi\n')
 
     for host_id in range(1, server_count):
-        testscript.write('remote' + str(host_id) + '_pid=$(ssh ' + remote_host_list[host_id-1] + ' pidof ' + server_program + ' | wc -l)\n')
+        testscript.write('remote' + str(host_id) + '_pid=$(ssh ' + remote_host_list[(host_id-1)%(host_count-1)] + ' pidof ' + server_program + ' | wc -l)\n')
         testscript.write('if [ "$remote' + str(host_id) + '_pid" == "1" ]; then\n')
-        testscript.write('echo ' + testname + ' in remote_hostone is running\n')
+        testscript.write('echo ' + testname + ' in remote_host' + str(host_id) + ' is running\n')
         testscript.write('echo -e "\\n"\n')
         testscript.write('else\n')
-        testscript.write('echo ' + testname + ' in remote_hostone is breaking down\n')
+        testscript.write('echo ' + testname + ' in remote_host' + str(host_id) + ' is breaking down\n')
         testscript.write('echo -e "\\n"\n')
         testscript.write('skip_client=true\n')
         testscript.write('fi\n')
@@ -198,7 +198,7 @@ def processBench(config, bench):
     #     testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
 
     testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
-    for host_id in range(1, server_count):
+    for host_id in range(1, host_count):
         testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + server_kill + '"\n')
 
     testscript.close()
@@ -298,6 +298,7 @@ if __name__ == "__main__":
         local_host = username + "@" + local_host_ip
         #node_id_one = "0 "
         remote_host_list = filter(None,[username + "@" + remote_host_ip.replace("\n","") for remote_host_ip in os.popen('cat $RDMA_ROOT/apps/env/remote_hosts').readlines()])
+        host_count = len(remote_host_list) + 1
 
         # remote_hostone_ip = os.popen('cat $RDMA_ROOT/apps/env/remote_host1').readline().replace("\n", "")
         # remote_hostone = username + "@" + remote_hostone_ip

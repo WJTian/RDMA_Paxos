@@ -6,7 +6,7 @@ OS: Ubuntu 14.04.02 64bit.
   
 ## How to run
 ### Install the dependencies for the program
-Use $RDMA_ROOT/RDMA/mk to download and install the dependencies for the program (those libraries will be installed in ./.local, and sources files will be kept in ./dep-lib).
+Use $RDMA_ROOT/RDMA/mk to download and install the dependencies for the program (those libraries will be installed in $RDMA_ROOT/RDMA/.local, and sources files will be kept in $RDMA_ROOT/RDMA/dep-lib).
 ### Install the applications
 We have prepared all the Makefiles for you in each application's directory.
 ### Run the evaluation framework

@@ -4,20 +4,11 @@ This project combines RDMA (Remote Direct Memory Access) and Paxos.
 
 OS: Ubuntu 14.04.02 64bit.  
   
-##Build php  
-  
-1. Install depdendent libraries/tools:  
-`sudo apt-get install libxml2-dev`  
-  
-2. $RDMA_ROOT/apps/apache/mk  
-php-cgi: install-php/bin/php-cgi  
-  
-##Install the dependencies for the program  
-Use ./RDMA/mk to download and install the dependencies for the Paxos program (those libraries will be installed in ./.local, and sources files will be kept in ./dep-lib)  
-subdir.mk: `-I"$(ROOT_DIR)/../.local/include"`  
-makefile: `-L"$(ROOT_DIR)/../.local/lib"`  
-  
-##Set env vars in ~/.bashrc  
-`export LD_LIBRARY_PATH=$RDMA_ROOT/RDMA/.local/lib:$LD_LIBRARY_PATH`
-
+## How to run
+### Install the dependencies for the program
+Use $RDMA_ROOT/RDMA/mk to download and install the dependencies for the program (those libraries will be installed in ./.local, and sources files will be kept in ./dep-lib).
+### Install the applications
+We have prepared all the Makefiles for you in each application's directory.
+### Run the evaluation framework
+For example, to run Redis hooked by Falcon, just go to $RDMA_ROOT/eval and run `python eval.py -f redis-output.cfg`. After that, you can collect the results by `cd current`.
 

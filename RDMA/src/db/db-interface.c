@@ -9,6 +9,7 @@
 
 const char* db_dir="./.db";
 u_int32_t pagesize = 64 * 1024;
+u_int cachesize = 32 * 1024 * 1024;
 //#define ENV
 
 struct db_t{
@@ -29,6 +30,7 @@ db* initialize_db(const char* db_name, uint32_t flag){
     DB_ENV* dbenv;
     int ret;
     char* full_path = NULL;
+#ifdef ENV
     if((ret = mkdir(db_dir,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) != 0){
         if(errno!=EEXIST){
             err_log("DB : Dir Creation Failed\n");
@@ -37,9 +39,12 @@ db* initialize_db(const char* db_name, uint32_t flag){
     }
     full_path = (char*)malloc(strlen(db_dir) + strlen(db_name) + 2);
     mk_path(full_path, db_dir, db_name);
-#ifdef ENV
     if ((ret = db_env_create(&dbenv, 0)) != 0) {
         dbenv->err(dbenv, ret, "Environment Created: %s", db_dir);
+        goto db_init_return;
+    }
+    if ((ret = dbenv->set_cachesize(dbenv, 0, cachesize, 1)) != 0) {
+        dbenv->err(dbenv, ret, "Environment Cachesize: %s", db_dir);
         goto db_init_return;
     }
     if ((ret = dbenv->open(dbenv, db_dir, DB_CREATE|DB_INIT_CDB|DB_INIT_MPOOL|DB_THREAD, 0)) != 0) {

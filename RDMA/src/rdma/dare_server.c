@@ -23,6 +23,8 @@ poll_ud();
 static void
 init_network_cb();
 static void
+join_cluster_cb();
+static void
 poll_cb();
 
 /* ================================================================== */
@@ -126,11 +128,33 @@ static void init_network_cb()
         rdma_error(log_fp, "Cannot init IB RC\n");
         goto shutdown;
     }
+
+    if (!is_leader()) {
+        /* Server joining the cluster */
+        join_cluster_cb();
+    }
     
     return;
     
 shutdown:
     dare_server_shutdown();
+}
+
+static void
+join_cluster_cb()
+{
+    int rc;
+    
+    rc = dare_ib_join_cluster();
+    if (0 != rc) {
+        rdma_error(log_fp, "Cannot join cluster\n");
+        goto shutdown;
+    }
+    
+    return;
+
+shutdown:
+    dare_server_shutdown();    
 }
 
 /* ================================================================== */

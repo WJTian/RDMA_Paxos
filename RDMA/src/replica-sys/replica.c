@@ -39,9 +39,6 @@ int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_
 
     int flag = 1;
 
-    if (launch_rdma(my_node))
-    	goto initialize_node_exit;
-
     int build_log_ret = 0;
     if(log_path==NULL){
         log_path = ".";

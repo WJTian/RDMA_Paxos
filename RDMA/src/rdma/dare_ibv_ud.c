@@ -62,6 +62,9 @@ void* event(void* arg)
         void *buffer = malloc(BUFSIZE);
         original_recvfrom(sockfd, buffer, BUFSIZE ,0, (struct sockaddr*)&client_addr, &addr_len);
 
+        if (memcpy(&client_addr.sin_addr, &SRV_DATA->my_address->sin_addr, sizeof(client_addr.sin_addr)) == 0)
+            continue;
+
         ud_hdr_t *header = (ud_hdr_t*)buffer;
         uint32_t type = header->type;
         switch(type) {

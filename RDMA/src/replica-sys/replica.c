@@ -13,7 +13,8 @@ int launch_rdma(node* my_node)
         .log = stdout,
         .group_size = my_node->group_size,
         .server_idx = my_node->node_id,
-        .cur_view = &my_node->cur_view
+        .cur_view = &my_node->cur_view,
+        .my_address = &my_node->my_address
     };
 
     if (0 != dare_server_init(&input)) {

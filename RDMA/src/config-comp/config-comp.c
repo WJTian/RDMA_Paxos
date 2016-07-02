@@ -38,6 +38,12 @@ int consensus_read_config(node* cur_node,const char* config_path){
 		goto goto_config_error;
 	}
 
+	const char* peer_ipaddr;
+	if(!config_setting_lookup_string(node_config,"ip_address",&peer_ipaddr)){
+		goto goto_config_error;
+	}
+	inet_pton(AF_INET,peer_ipaddr,&cur_node->my_address.sin_addr);
+
 	config_setting_lookup_int(node_config,"sys_log",&cur_node->sys_log);
 	config_setting_lookup_int(node_config,"stat_log",&cur_node->stat_log);
 	const char* db_name;

@@ -24,8 +24,8 @@ typedef struct node_t{
 	//consensus component
 	struct consensus_component_t* consensus_comp;
 	// replica group
+	struct sockaddr_in my_address;
 	uint32_t group_size;
-	peer* peer_pool;
 
 	//databse part
 	char* db_name;

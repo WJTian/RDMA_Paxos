@@ -56,13 +56,14 @@ void* event(void* arg)
         perror ("ERROR on setsockopt");
 
     socklen_t addr_len = sizeof(client_addr);
-
+    void *buffer = malloc(BUFSIZE);
+    
     for (;;)
     {
-        void *buffer = malloc(BUFSIZE);
+        memset(buffer, 0, BUFSIZE);
         original_recvfrom(sockfd, buffer, BUFSIZE ,0, (struct sockaddr*)&client_addr, &addr_len);
 
-        if (memcpy(&client_addr.sin_addr, &SRV_DATA->my_address->sin_addr, sizeof(client_addr.sin_addr)) == 0)
+        if (memcmp(&client_addr.sin_addr, &SRV_DATA->my_address->sin_addr, sizeof(client_addr.sin_addr)) == 0)
             continue;
 
         ud_hdr_t *header = (ud_hdr_t*)buffer;

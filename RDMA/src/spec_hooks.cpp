@@ -30,9 +30,10 @@ void tern_init_func(int argc, char **argv, char **env)
 
 	char* log_dir = NULL;
 	const char* id = getenv("node_id");
+	const char* start_mode = getenv("start_mode");
 	uint32_t node_id = atoi(id);
 	ev_mgr = NULL;
-	ev_mgr = mgr_init(node_id, config_path, log_dir);
+	ev_mgr = mgr_init(node_id, config_path, log_dir, start_mode);
 }
 
 typedef void (*fini_type)(void*);

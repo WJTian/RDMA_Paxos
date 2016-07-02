@@ -1,8 +1,7 @@
 #include "../include/ev_mgr/ev_mgr.h"
 #include "../include/config-comp/config-mgr.h"
 #include "../include/replica-sys/node.h"
-#include "../include/rdma/dare.h"
-#include "../include/rdma/dare_ibv_rc.h"
+#include "../include/rdma/dare_server.h"
 #include "../include/ev_mgr/check_point_thread.h"
 
 #include "../include/output/output.h"
@@ -347,12 +346,11 @@ do_action_send_exit:
 
 int reconnect_inner_set_flag(){
     restore_flag = 1;
+    return 0;
 }
 
 static void reconnect_inner(event_manager* ev_mgr){
     ev_mgr->node_id = get_id();
-
-    uint32_t leader_id = get_leader_id(ev_mgr->con_node);
 
     int rc = launch_rdma(ev_mgr->con_node);
     if (rc != 0 )
@@ -374,7 +372,7 @@ int disconnct_inner()
         	struct timeval tv;
         	gettimeofday(&tv,0);
         	fprintf(stdout,"%lu.%06lu:%s",tv.tv_sec,tv.tv_usec,"start to disconnect\n");
-            int ret = rc_disconnect_server();
+            int ret = dare_rdma_shutdown();
             if (-1 == ret)
                 return ret;
 
@@ -471,7 +469,7 @@ static void update_state(db_key_type index,void* arg){
 }
 
 
-event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* log_path){
+event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* log_path, const char* start_mode){
     
     event_manager* ev_mgr = (event_manager*)malloc(sizeof(event_manager));
 
@@ -536,7 +534,7 @@ event_manager* mgr_init(node_id_t node_id, const char* config_path, const char* 
     ev_mgr->replica_tcp_map = NULL;
     ev_mgr->leader_udp_map = NULL;
 
-    ev_mgr->con_node = system_initialize(&ev_mgr->node_id,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr);
+    ev_mgr->con_node = system_initialize(&ev_mgr->node_id,config_path,log_path,update_state,check_point_condtion,get_mapping_fd,ev_mgr->db_ptr,ev_mgr,start_mode);
 
     if(NULL==ev_mgr->con_node){
         err_log("EVENT MANAGER : Cannot Initialize Consensus Component.\n");

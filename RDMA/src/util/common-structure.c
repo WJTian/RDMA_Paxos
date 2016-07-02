@@ -43,5 +43,25 @@ ssize_t original_recvfrom(int sockfd, void *buf, size_t len, int flags, struct s
     
     ssize_t ret = orig_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
     return ret;
+}
 
+ssize_t original_sendto(int sockfd, void *buf, size_t len, int flags, struct sockaddr *dest_addr, socklen_t addrlen)
+{
+    typedef ssize_t (*orig_sendto_type)(int, void *, size_t, int, struct sockaddr*, socklen_t);
+    static orig_sendto_type orig_sendto;
+    if (!orig_sendto)
+        orig_sendto = (orig_sendto_type) dlsym(RTLD_NEXT, "sendto");
+    
+    ssize_t ret = orig_sendto(sockfd, buf, len, flags, dest_addr, addrlen);
+    return ret;
+}
+
+int original_close(int fildes)
+{
+    typedef int (*orig_close_type)(int);
+    static orig_close_type orig_close;
+    if (!orig_close)
+        orig_close = (orig_close_type) dlsym(RTLD_NEXT, "close");
+    int ret = orig_close(fildes);
+    return ret;
 }

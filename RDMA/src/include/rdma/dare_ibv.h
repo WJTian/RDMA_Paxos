@@ -32,8 +32,8 @@ typedef struct rc_cq_t rc_cq_t;
 /* Endpoint RC info */
 struct rc_ep_t {
     rem_mem_t rmt_mr;    // remote memory regions
-    rc_qp_t   rc_qp;     // RC QPs (LOG)
-    rc_cq_t   rc_cq;     // RC CQs (LOG)
+    rc_qp_t   rc_qp;     // RC QP (LOG)
+    rc_cq_t   rc_cq;     // RC CQ (LOG)
 };
 typedef struct rc_ep_t rc_ep_t;
 
@@ -74,6 +74,12 @@ int dare_init_ib_device();
 int dare_init_ib_srv_data( void *data );
 int dare_init_ib_rc();
 void dare_ib_srv_shutdown();
+
+/* */
+void dare_ib_poll_ud_queue();
+int dare_ib_join_cluster();
+
+/* */
 int find_max_inline(struct ibv_context *context, struct ibv_pd *pd, uint32_t *max_inline_arg );
 
 #endif /* DARE_IBV_H */

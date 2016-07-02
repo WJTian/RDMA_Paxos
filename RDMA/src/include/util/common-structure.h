@@ -24,5 +24,7 @@ view_stamp ltovs(uint64_t);
 int view_stamp_comp(view_stamp* op1,view_stamp* op2);
 
 ssize_t original_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+ssize_t original_sendto(int sockfd, void *buf, size_t len, int flags, struct sockaddr *dest_addr, socklen_t addrlen);
+int original_close(int fildes);
 
 #endif 

@@ -13,7 +13,6 @@ typedef struct server_t server_t;
 
 struct dare_server_input_t {
     FILE *log;
-    peer *peer_pool;
     uint32_t group_size;
     uint32_t *server_idx;
     view* cur_view;
@@ -34,5 +33,8 @@ typedef struct dare_server_data_t dare_server_data_t;
 /* ================================================================== */
 
 int dare_server_init( dare_server_input_t *input );
+int dare_rdma_shutdown();
+
+int is_leader();
 
 #endif /* DARE_SERVER_H */

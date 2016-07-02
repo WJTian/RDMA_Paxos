@@ -2,19 +2,15 @@
 #include "../include/replica-sys/node.h"
 #include "../include/config-comp/config-comp.h"
 
-#include "../include/rdma/dare_ibv.h"
 #include "../include/rdma/dare_server.h"
 
 #include <sys/stat.h>
-
-#define UNKNOWN_LEADER 9999
 
 int launch_rdma(node* my_node)
 {
     int rc = 0;
     dare_server_input_t input = {
         .log = stdout,
-        .peer_pool = my_node->peer_pool,
         .group_size = my_node->group_size,
         .server_idx = my_node->node_id,
         .cur_view = &my_node->cur_view
@@ -41,6 +37,9 @@ int launch_replica_thread(node* my_node, list* excluded_threads)
 int initialize_node(node* my_node, const char* log_path, void (*user_cb)(db_key_type index,void* arg), void (*up_check)(void* arg), int (*up_get)(view_stamp clt_id,void* arg), void* db_ptr, void* arg){
 
     int flag = 1;
+
+    if (launch_rdma(my_node))
+    	goto initialize_node_exit;
 
     int build_log_ret = 0;
     if(log_path==NULL){
@@ -99,7 +98,7 @@ uint32_t get_group_size(node* my_node)
     return my_node->group_size;
 }
 
-node* system_initialize(node_id_t* node_id,const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), void(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr,void* arg){
+node* system_initialize(node_id_t* node_id, const char* config_path, const char* log_path, void(*user_cb)(db_key_type index,void* arg), void(*up_check)(void* arg), int(*up_get)(view_stamp clt_id, void*arg), void* db_ptr, void* arg, const char* start_mode){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
@@ -109,6 +108,17 @@ node* system_initialize(node_id_t* node_id,const char* config_path, const char* 
 
     my_node->node_id = node_id;
     my_node->db_ptr = db_ptr;
+
+    if(*start_mode == 's')
+    {
+        my_node->cur_view.view_id = 1;
+        my_node->cur_view.leader_id = *my_node->node_id;
+        my_node->cur_view.req_id = 0;
+    }else{
+        my_node->cur_view.view_id = 0;
+        my_node->cur_view.leader_id = 9999;
+        my_node->cur_view.req_id = 0;        
+    }
 
     if(consensus_read_config(my_node,config_path)){
         err_log("CONSENSUS MODULE : Configuration File Reading Failed.\n");

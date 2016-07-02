@@ -6,11 +6,13 @@
 C_SRCS += \
 ../src/rdma/dare_ibv.c \
 ../src/rdma/dare_ibv_rc.c \
+../src/rdma/dare_ibv_ud.c \
 ../src/rdma/dare_server.c
 
 OBJS += \
 ./src/rdma/dare_ibv.o \
 ./src/rdma/dare_ibv_rc.o \
+./src/rdma/dare_ibv_ud.o \
 ./src/rdma/dare_server.o \
 
 

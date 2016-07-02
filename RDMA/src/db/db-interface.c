@@ -27,10 +27,10 @@ void mk_path(char* dest,const char* prefix,const char* db_name){
 db* initialize_db(const char* db_name, uint32_t flag){
     db* db_ptr = NULL;
     DB* b_db;
-    DB_ENV* dbenv;
     int ret;
     char* full_path = NULL;
 #ifdef ENV
+    DB_ENV* dbenv;
     if((ret = mkdir(db_dir,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)) != 0){
         if(errno!=EEXIST){
             err_log("DB : Dir Creation Failed\n");

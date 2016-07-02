@@ -1,6 +1,7 @@
 #include "../include/rdma/dare.h"
 #include "../include/rdma/dare_ibv.h"
 #include "../include/rdma/dare_ibv_rc.h"
+#include "../include/rdma/dare_ibv_ud.h"
 #include "../include/rdma/dare_server.h"
 
 /* InfiniBand device */
@@ -196,6 +197,20 @@ static void free_ib_device()
         IBDEV = NULL;
     }
 }
+
+/* ================================================================== */
+
+void dare_ib_poll_ud_queue()
+{
+    ud_get_message();
+}
+
+int dare_ib_join_cluster()
+{
+    return ud_join_cluster();
+}
+
+/* ================================================================== */
 
 int find_max_inline(struct ibv_context *context, struct ibv_pd *pd, uint32_t *max_inline_arg)
 {

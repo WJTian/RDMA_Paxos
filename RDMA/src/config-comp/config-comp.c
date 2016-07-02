@@ -14,10 +14,6 @@ int consensus_read_config(node* cur_node,const char* config_path){
 	}
 
 	cur_node->group_size = group_size;
-	cur_node->peer_pool = (peer*)malloc(group_size*sizeof(peer));
-	if(NULL==cur_node->peer_pool){
-		goto goto_config_error;
-	}
 
 	if(group_size <= *cur_node->node_id){
 		err_log("CONSENSUS : Configuration Reading Error : Invalid Node Id.\n");
@@ -35,47 +31,30 @@ int consensus_read_config(node* cur_node,const char* config_path){
 		err_log("CONSENSUS : Cannot Find Net Address Section.\n");
 		goto goto_config_error;
 	}
-	peer* peer_pool = cur_node->peer_pool;
-	for(uint32_t i=0;i<group_size;i++){
-		config_setting_t *node_config = config_setting_get_elem(nodes_config,i);
-		if(NULL==node_config){
-			err_log("CONSENSUS : Cannot Find Node%u's Address.\n",i);
-			goto goto_config_error;
-		}
-		const char* peer_ipaddr;
-		int peer_port;
-		if(!config_setting_lookup_string(node_config,"ip_address",&peer_ipaddr)){
-			goto goto_config_error;
-		}
-		if(!config_setting_lookup_int(node_config,"port",&peer_port)){
-			goto goto_config_error;
-		}
 
-		peer_pool[i].peer_address = (struct sockaddr_in*)malloc(sizeof(struct
-			sockaddr_in));
-		peer_pool[i].peer_address->sin_family =AF_INET;
-		inet_pton(AF_INET,peer_ipaddr,&peer_pool[i].peer_address->sin_addr);
-		peer_pool[i].peer_address->sin_port = htons(peer_port);
-		if(i==*cur_node->node_id){
-			config_setting_lookup_int(node_config,"sys_log",&cur_node->sys_log);
-			config_setting_lookup_int(node_config,"stat_log",&cur_node->stat_log);
-			const char* db_name;
-			if(!config_setting_lookup_string(node_config,"db_name",&db_name)){
-				goto goto_config_error;
-			}
-			size_t db_name_len = strlen(db_name);
-			cur_node->db_name = (char*)malloc(sizeof(char)*(db_name_len+1));
-			if(cur_node->db_name==NULL){
-				goto goto_config_error;
-			}
-			if(NULL==strncpy(cur_node->db_name,db_name,db_name_len)){
-				free(cur_node->db_name);
-				goto goto_config_error;
-			}
-			cur_node->db_name[db_name_len] = '\0';
-		}
+	config_setting_t *node_config = config_setting_get_elem(nodes_config,*cur_node->node_id);
+	if(NULL==node_config){
+		err_log("CONSENSUS : Cannot Find Node's Address.\n");
+		goto goto_config_error;
 	}
 
+	config_setting_lookup_int(node_config,"sys_log",&cur_node->sys_log);
+	config_setting_lookup_int(node_config,"stat_log",&cur_node->stat_log);
+	const char* db_name;
+	if(!config_setting_lookup_string(node_config,"db_name",&db_name)){
+		goto goto_config_error;
+	}
+	size_t db_name_len = strlen(db_name);
+	cur_node->db_name = (char*)malloc(sizeof(char)*(db_name_len+1));
+	if(cur_node->db_name==NULL){
+		goto goto_config_error;
+	}
+	if(NULL==strncpy(cur_node->db_name,db_name,db_name_len)){
+		free(cur_node->db_name);
+		goto goto_config_error;
+	}
+	cur_node->db_name[db_name_len] = '\0';
+	
 	config_destroy(&config_file);
 
 	return 0;

@@ -5,10 +5,6 @@
 #include "../db/db-interface.h"
 #include "./replica.h"
 
-typedef struct peer_t{
-	struct sockaddr_in* peer_address;
-}peer;
-
 typedef void (*user_cb)(db_key_type index,void* arg);
 typedef void (*up_check)(void* arg);
 typedef int (*up_get)(view_stamp clt_id,void* arg);

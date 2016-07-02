@@ -182,11 +182,11 @@ static int ud_exchange_rc_info()
 
     uint32_t i, j;
     dare_ib_ep_t* ep;
-    for (i = 0, j = 0; i < SRV_DATA->config.len; i++, j += 1) {
+    for (i = 0, j = 0; i < SRV_DATA->config.cid.size; i++, j += 1) {
         ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
         qpns[j] = ep->rc_ep.rc_qp.qp->qp_num;
     }
-    len += SRV_DATA->config.len*sizeof(uint32_t);
+    len += SRV_DATA->config.cid.size*sizeof(uint32_t);
     
     union ibv_gid my_gid;
     if (IBDEV->gid_idx >= 0)

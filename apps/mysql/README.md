@@ -1,5 +1,5 @@
 command to run:  
-`sysbench --mysql-user=root --test=oltp --oltp-table-size=2000000 --oltp-table-name=sbtest --mysql-table-engine=InnoDB --mysql-engine-trx=yes --mysql-db=sysbench_db prepare` 
+`sysbench --mysql-user=root --test=oltp --oltp-table-size=2000000 --oltp-table-name=sbtest --mysql-table-engine=InnoDB --mysql-engine-trx=yes --mysql-db=sysbench_db --mysql-socket=/var/run/mysqld/mysqld.sock prepare` 
 
 `sudo ./run`  
   

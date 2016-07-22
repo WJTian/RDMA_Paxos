@@ -8,7 +8,7 @@
 #include "../include/util/debug.h"
 
 const char* db_dir="./.db";
-u_int32_t pagesize = 64 * 1024;
+u_int32_t pagesize = 32 * 1024;
 u_int cachesize = 32 * 1024 * 1024;
 //#define ENV
 
@@ -43,10 +43,6 @@ db* initialize_db(const char* db_name, uint32_t flag){
         dbenv->err(dbenv, ret, "Environment Created: %s", db_dir);
         goto db_init_return;
     }
-    if ((ret = dbenv->set_cachesize(dbenv, 0, cachesize, 1)) != 0) {
-        dbenv->err(dbenv, ret, "Environment Cachesize: %s", db_dir);
-        goto db_init_return;
-    }
     if ((ret = dbenv->open(dbenv, db_dir, DB_CREATE|DB_INIT_CDB|DB_INIT_MPOOL|DB_THREAD, 0)) != 0) {
         //dbenv->err(dbenv, ret, "Environment Open: %s", db_dir);
         goto db_init_return;
@@ -62,13 +58,16 @@ db* initialize_db(const char* db_name, uint32_t flag){
         err_log("DB : %s.\n", db_strerror(ret));                                                                                                                               
         goto db_init_return;                                                                                                                                                   
     }                                                                                                                                                                          
-#endif                                                                                                                                                                         
     if((ret = b_db->set_pagesize(b_db, pagesize)) != 0){                                                                                                                       
         err_log("DB : %s.\n", db_strerror(ret));                                                                                                                               
         goto db_init_return;                                                                                                                                                   
-    }                                                                                                                                                                          
-                                                                                                                                                                               
-    if((ret = b_db->open(b_db, NULL, db_name, NULL, DB_BTREE, DB_THREAD|DB_CREATE,0)) != 0){ // db_name is the on-disk file that holds the database                            
+    }
+    if((ret = b_db->set_cachesize(b_db, 0, cachesize, 1)) != 0){                                                                                                                       
+        err_log("DB : %s.\n", db_strerror(ret));                                                                                                                               
+        goto db_init_return;                                                                                                                                                   
+    }    
+#endif                                                                                                                                                                         
+    if((ret = b_db->open(b_db, NULL, db_name, NULL, DB_BTREE, DB_THREAD|DB_CREATE, 0)) != 0){ // db_name is the on-disk file that holds the database                            
         //b_db->err(b_db,ret,"%s","test.db");                                                                                                                                  
         goto db_init_return;                                                                                                                                                   
     }                                                                                                                                                                          

@@ -15,7 +15,7 @@ struct dare_log_entry_t{
     uint8_t type;
     view_stamp clt_id;
     char data[0];
-};
+}; // 168bytes
 typedef struct dare_log_entry_t dare_log_entry_t;
 
 #define LOG_SIZE  16384*4*PAGE_SIZE

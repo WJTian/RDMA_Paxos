@@ -2,6 +2,9 @@
 
 This project combines RDMA (Remote Direct Memory Access) and Paxos. When cluster size varies from 3 to 17 nodes, the consensus latency increases merely by 16%~45%.
 
+
+
+
 OS: Ubuntu 14.04.02 64bit.  
   
 ## How to run

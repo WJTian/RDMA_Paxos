@@ -38,9 +38,19 @@ def processBench(config, bench):
     # print hook_option + check_option + compare_option
     server_count = config.getint(bench, 'SERVER_COUNT')
     server_program = config.get(bench, 'SERVER_PROGRAM')
+
+    server_config = "nodes.local.cfg"
+    #if server_count == 3:
+    #    server_config = "nodes.local.cfg"
+    #elif server_count == 5:
+    #    server_config = "nodes.five.cfg"
+    #elif server_count == 9:
+    #    server_config = "nodes.nine.cfg"
+    #else:
+    #    logger.error("server_count not support yet!")
     # if len(server_program)!=0:
     if hook_option == "WITH_HOOK":
-        hook_program = "env node_id=myid LD_LIBRARY_PATH=$RDMA_ROOT/RDMA/.local/lib  cfg_path=$RDMA_ROOT/RDMA/target/nodes.local.cfg LD_PRELOAD=$RDMA_ROOT/RDMA/target/interpose.so "
+        hook_program = "env node_id=myid LD_LIBRARY_PATH=$RDMA_ROOT/RDMA/.local/lib  cfg_path=$RDMA_ROOT/RDMA/target/" + server_config + " LD_PRELOAD=$RDMA_ROOT/RDMA/target/interpose.so "
     elif hook_option == "WITHOUT_HOOK":
         hook_program = ""
     else:
@@ -53,7 +63,7 @@ def processBench(config, bench):
     else:
         logger.error("No such compare option")
 
-    #repeats = config.getint(bench, 'REPEATS')
+    repeats = config.getint(bench, 'REPEATS')
     server_input = config.get(bench, 'SERVER_INPUT')
     server_kill = config.get(bench, 'SERVER_KILL')
     client_program = config.get(bench, 'CLIENT_PROGRAM')
@@ -66,13 +76,17 @@ def processBench(config, bench):
     #if testname == "clamav":
     #    client_repeats = config.get(bench, 'CLIENT_REPEATS')
 
-    if testname == "mongodb":
-        hook_program = hook_program.replace("nodes.local.cfg", "nodes.mongodb.cfg")
+    #if testname == "mongodb":
+    #    hook_program = hook_program.replace(config_file, "nodes.mongodb.cfg")
     port = port_str.replace("port:", "")
     logging.info("port: " + port)
     testscript = open(testname, "w")
     testscript.write('#! /bin/bash\n')
-
+  
+    if testname == "mongodb":
+        testscript.write('bash cfg_mongodb_generate.sh ' + str(server_count) + ' ' + str(host_count) + ' ' + port +'\n')
+    else:
+        testscript.write('bash cfg_generate.sh ' + str(server_count) + ' ' + str(host_count) + ' ' + port +'\n')
     testscript.write('bash db_delete.sh\n')
     if testname == "mongodb":
         #testscript.write('ssh ' + local_host + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n' +
@@ -82,9 +96,10 @@ def processBench(config, bench):
         for host_id in range(1,host_count):
             testscript.write('ssh ' + remote_host_list[host_id-1] + '  "rm -rf $RDMA_ROOT/apps/mongodb/install/data/*"\n')
 
-    testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
-    for host_id in range(1, host_count):
-        testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + server_kill + '"\n')
+    testscript.write('ssh ' + local_host + '  "' + server_kill.replace("PORT",port) + '"\n')
+    for host_id in range(1, server_count):
+        server_port = (host_id-1)/(host_count-1)+int(port)
+        testscript.write('ssh ' + remote_host_list[(host_id-1)%(host_count-1)] + '  "' + server_kill.replace("PORT",str(server_port)) + '"\n')
 
     # if server_count == 3:
     #     testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n' +
@@ -93,11 +108,11 @@ def processBench(config, bench):
     # elif server_count == 1:
     #     testscript.write(server_kill + '\n')
 
-    testscript.write('ssh ' + local_host + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = ' + port + ';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
-    testscript.write('ssh ' + local_host + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
+    #testscript.write('ssh ' + local_host + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = ' + port + ';/}\' $RDMA_ROOT/RDMA/target/' + server_config + '  "\n')
+    testscript.write('ssh ' + local_host + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/' + server_config + '  "\n')
     for host_id in range(1, host_count):
-        testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = ' + port + ';/}\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
-        testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
+        #testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + 'sed -i \'/127.0.0.1/{n;s/.*/        port       = ' + port + ';/}\' $RDMA_ROOT/RDMA/target/' + server_config + '  "\n')
+        testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/' + server_config + '  "\n')
 
 
     # testscript.write(
@@ -110,9 +125,10 @@ def processBench(config, bench):
     #     'ssh ' + remote_hostone + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n' +
     #     'ssh ' + remote_hosttwo + '  "' + 'sed -i \'/check_output/c     check_output = ' + check_output + ';\' $RDMA_ROOT/RDMA/target/nodes.local.cfg  "\n')
 
-    testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid","0") + server_program + ' ' + server_input + '"  \n' + 'sleep 2 \n')
+    testscript.write('ssh -f ' + local_host + '  "' + hook_program.replace("myid","0") + server_program + ' ' + server_input.replace("PORT",port) + '"  \n' + 'sleep 2 \n')
     for host_id in range(1, server_count):
-        testscript.write('ssh -f ' + remote_host_list[(host_id-1)%(host_count-1)] + '  "' + hook_program.replace("myid",str(host_id)) + server_program + ' ' + server_input + '"  \n' + 'sleep 2 \n')
+        server_port = (host_id-1)/(host_count-1)+int(port)
+        testscript.write('ssh -f ' + remote_host_list[(host_id-1)%(host_count-1)] + '  "' + hook_program.replace("myid",str(host_id)) + server_program + ' ' + server_input.replace("PORT",str(server_port)) + '"  \n' + 'sleep 2 \n')
     testscript.write('sleep 2 \n')
 
     # if server_count == 3:
@@ -181,7 +197,7 @@ def processBench(config, bench):
         #if testname == "clamav":
         #    testscript.write('for i in {1..' + client_repeats + '}\n' + 'do\n')
         for client_input_part in client_input_list:
-            testscript.write('timeout 240 ' + client_program + ' ' + client_input_part + '  >>& ' + config_file.replace(".cfg","") +
+            testscript.write('timeout 240 ' + client_program + ' ' + client_input_part + '  >& ' + config_file.replace(".cfg","") +
                              '_' + git_ver + '_' + time_stamp + '/' + testname + '_output_$1' + '\n' + 'sleep 10 \n')
         #if testname == "clamav":
         #    testscript.write('done\n')
@@ -197,9 +213,10 @@ def processBench(config, bench):
     # elif server_count == 1:
     #     testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
 
-    testscript.write('ssh ' + local_host + '  "' + server_kill + '"\n')
-    for host_id in range(1, host_count):
-        testscript.write('ssh ' + remote_host_list[host_id-1] + '  "' + server_kill + '"\n')
+    testscript.write('ssh ' + local_host + '  "' + server_kill.replace("PORT",port) + '"\n')
+    for host_id in range(1, server_count):
+        server_port = (host_id-1)/(host_count-1)+int(port)
+        testscript.write('ssh ' + remote_host_list[(host_id-1)%(host_count-1)] + '  "' + server_kill.replace("PORT",str(server_port)) + '"\n')
 
     testscript.close()
 
@@ -209,8 +226,8 @@ def processBench(config, bench):
     os.system('mkdir ' + config_file.replace(".cfg", "") + '_' + git_ver + '_' + time_stamp)
     os.system('ln -s ' + config_file.replace(".cfg", "") + '_' + git_ver + '_' + time_stamp + '  ' + 'current')
     os.system('cp ' + config_file + ' ' + config_file.replace(".cfg", "") + '_' + git_ver + '_' + time_stamp)
-    # for repeat in range(0, repeats):
-    #     os.system('./' + testname + " " + str(repeat))
+    for repeat in range(0, repeats):
+        os.system('./' + testname + " " + str(repeat))
         # os.system('rm -rf ' + testname)
         # os.system(server_program + " " + server_input)
         # os.system(client_program + " " + client_input)

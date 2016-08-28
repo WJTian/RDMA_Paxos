@@ -16,13 +16,13 @@ fi
 
 cat $RDMA_ROOT/apps/env/local_host | while read line
 do
-    ssh -f $LOGNAME@${line} "sudo rm -rf ~/.db"
+    ssh -f $LOGNAME@${line} "sudo rm -rf ~/DB*"
     ssh -f $LOGNAME@${line} "sudo rm -rf ~/node*"
 done
 
 cat $RDMA_ROOT/apps/env/remote_hosts | while read line
 do
-    ssh -f $LOGNAME@${line} "sudo rm -rf ~/.db"
+    ssh -f $LOGNAME@${line} "sudo rm -rf ~/DB*"
     ssh -f $LOGNAME@${line} "sudo rm -rf ~/node*"
 done
 

@@ -9,7 +9,7 @@ dare_server_data_t data;
 ev_idle poll_event;
 ev_timer hb_event;
 
-const double hb_period = 0.01;
+double hb_period;
 const uint64_t elec_timeout_low = 100000;
 const uint64_t elec_timeout_high = 300000;
 
@@ -21,6 +21,7 @@ static void poll_vote_count();
 static void polling();
 static void poll_vote_requests();
 
+static void *hb_begin(void *arg);
 static void hb_receive_cb( EV_P_ ev_timer *w, int revents );
 static void hb_send_cb( EV_P_ ev_timer *w, int revents );
 static void poll_cb( EV_P_ ev_idle *w, int revents );
@@ -29,41 +30,7 @@ static int init_server_data();
 static void free_server_data();
 static void init_network_cb();
 
-
 #define IS_CANDIDATE ((SID_GET_IDX(data.log->ctrl_data.sid) == data.config.idx) && (!SID_GET_L(data.log->ctrl_data.sid)))
-
-static void *hb_begin(void *arg)
-{
-    uint64_t sid = 0;    
-    
-    SID_SET_TERM(sid, 1);
-    SID_SET_L(sid);
-    SID_SET_IDX(sid, INIT_LEADER);
-    server_update_sid(sid, data.log->ctrl_data.sid);
-    data.loop = EV_DEFAULT;
-    /* Init the poll event */
-    ev_idle_init(&poll_event, poll_cb);
-    //ev_set_priority(&poll_event, EV_MAXPRI);
-
-    // initially, send cb is called every 0.01, receive cb is called every 0.1
-    if (data.config.idx == INIT_LEADER)
-    {
-    	ev_init(&hb_event, hb_send_cb);
-	hb_event.repeat = hb_period;
-    }
-    else
-    {
-    	ev_init(&hb_event, hb_receive_cb);
-    	hb_event.repeat = hb_timeout();
-    	//ev_set_priority(&hb_event, EV_MAXPRI-1);
-    }
-    ev_timer_again(data.loop, &hb_event);
-
-    /* Now wait for events to arrive */
-    ev_run(data.loop, 0);
-
-    return NULL;
-}
 
 int dare_server_init(dare_server_input_t *input)
 {   
@@ -88,10 +55,15 @@ int dare_server_init(dare_server_input_t *input)
 
     init_network_cb();
 
-    pthread_t hb_thread;
-    rc = pthread_create(&hb_thread, NULL, hb_begin, NULL);
-    if (rc != 0)
-	fprintf(stderr, "pthread_create hb_begin fail\n");
+    if (input->hb_on == 1)
+    {
+        hb_period = input->hb_period;
+        
+        pthread_t hb_thread;
+        rc = pthread_create(&hb_thread, NULL, hb_begin, NULL);
+        if (rc != 0)
+            fprintf(stderr, "pthread_create hb_begin fail\n");
+    }
 
     return 0;
 }
@@ -172,6 +144,36 @@ shutdown:
     dare_server_shutdown();
 }
 
+static void *hb_begin(void *arg)
+{
+    uint64_t sid = 0;    
+    
+    SID_SET_TERM(sid, 1);
+    SID_SET_L(sid);
+    SID_SET_IDX(sid, INIT_LEADER);
+    server_update_sid(sid, data.log->ctrl_data.sid);
+    data.loop = EV_DEFAULT;
+    /* Init the poll event */
+    ev_idle_init(&poll_event, poll_cb);
+    //ev_set_priority(&poll_event, EV_MAXPRI);
+
+    // initially, send cb is called every 0.01, receive cb is called every 0.1
+    if (data.config.idx == INIT_LEADER)
+    {
+        ev_init(&hb_event, hb_send_cb);
+        hb_event.repeat = hb_period;
+    } else {
+        ev_init(&hb_event, hb_receive_cb);
+        hb_event.repeat = hb_timeout();
+        //ev_set_priority(&hb_event, EV_MAXPRI-1);
+    }
+    ev_timer_again(data.loop, &hb_event);
+
+    /* Now wait for events to arrive */
+    ev_run(data.loop, 0);
+
+    return NULL;
+}
 
 static void hb_receive_cb(EV_P_ ev_timer *w, int revents)
 {

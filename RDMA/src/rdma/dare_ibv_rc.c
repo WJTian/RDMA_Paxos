@@ -24,6 +24,102 @@ static int rc_qp_reset(dare_ib_ep_t *ep);
 
 /* ================================================================== */
 
+int rc_send_hb()
+{
+    int rc;
+    dare_ib_ep_t *ep;
+    uint8_t i, size;
+    
+    size = SRV_DATA->config.cid.size;
+    
+    /* Set offset accordingly */
+    uint32_t offset = (uint32_t) (offsetof(dare_log_t, ctrl_data) + offsetof(ctrl_data_t, hb) + sizeof(uint64_t) * SRV_DATA->config.idx);
+    
+    /* Issue RDMA Write operations */
+
+    for (i = 0; i < size; i++) {
+        if (i == SRV_DATA->config.idx) continue;
+
+        ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
+        
+        rem_mem_t rm;
+        rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
+        rm.rkey = ep->rc_ep.rmt_mr.rkey;
+        /* server_id, buf, len, mr, opcode, rm, signaled, poll_completion */ 
+        rc = post_send(i, &SRV_DATA->log->ctrl_data.sid, sizeof(uint64_t), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, 1, 0);
+        if (0 != rc) {
+            /* This should never happen */
+            error_return(1, log_fp, "Cannot post send operation\n");
+        }
+    poll_cq(1, ep->rc_ep.rc_cq.cq);
+    }
+
+    return 0;
+}
+
+int rc_send_vote_request()
+{
+    int rc;
+    uint8_t i, size = SRV_DATA->config.cid.size;
+    uint8_t idx = SRV_DATA->config.idx;
+    dare_ib_ep_t *ep;
+    rem_mem_t rm;
+    
+    fprintf(stdout, "Set vote request\n");
+    vote_req_t *request = &(SRV_DATA->log->ctrl_data.vote_req[idx]);
+    request->sid = SRV_DATA->log->ctrl_data.sid;
+    request->term = 1;
+    request->index = (idx == FIXED_LEADER) ? 1 : 0;
+
+    uint32_t offset = (uint32_t) (offsetof(dare_log_t, ctrl_data) + offsetof(ctrl_data_t, vote_req) + sizeof(vote_req_t) * idx);
+    
+    for (i = 0; i < size; i++) {
+        if (idx == i || i == INIT_LEADER) continue;
+        ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
+        
+        /* Set address and key of remote memory region */
+        rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
+        rm.rkey = ep->rc_ep.rmt_mr.rkey;
+
+    rc = post_send(i, request, sizeof(vote_req_t), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm , 1, 0);
+        if (0 != rc) {
+            /* This should never happen */
+            error_return(1, log_fp, "Cannot post send operation\n");
+        }
+    poll_cq(1, ep->rc_ep.rc_cq.cq);
+    }
+
+    return 0;
+}
+
+int rc_send_vote_ack()
+{
+    int rc;
+    dare_ib_ep_t *ep;
+    rem_mem_t rm;
+    uint8_t candidate = SID_GET_IDX(SRV_DATA->log->ctrl_data.sid);
+    uint8_t idx = SRV_DATA->config.idx;
+
+    ep = (dare_ib_ep_t*)SRV_DATA->config.servers[candidate].ep;          
+       
+    /* Set remote offset */
+    uint32_t offset = (uint32_t)(offsetof(dare_log_t, ctrl_data) + offsetof(ctrl_data_t, vote_ack) + sizeof(uint64_t) * idx);
+                            
+    /* Set address and key of remote memory region */
+    rm.raddr = ep->rc_ep.rmt_mr.raddr + offset;
+    rm.rkey = ep->rc_ep.rmt_mr.rkey;
+
+    /* server_id, buf, len, mr, opcode, rm, signaled, poll_completion */ 
+    rc = post_send(candidate, &SRV_DATA->log->end, sizeof(uint64_t), IBDEV->lcl_mr, IBV_WR_RDMA_WRITE, &rm, 1, 0);
+
+    if (0 != rc) {
+        /* This should never happen */
+        error_return(1, log_fp, "Cannot post send operation\n");
+    }
+    poll_cq(1, ep->rc_ep.rc_cq.cq);
+    return 0;
+}
+
 int rc_init()
 {
     int rc, i;

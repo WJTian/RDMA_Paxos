@@ -82,4 +82,10 @@ int dare_ib_join_cluster();
 /* */
 int find_max_inline(struct ibv_context *context, struct ibv_pd *pd, uint32_t *max_inline_arg );
 
+int dare_ib_send_hb();
+
+/* Leader election */
+int dare_ib_send_vote_request();
+int dare_ib_send_vote_ack();
+
 #endif /* DARE_IBV_H */

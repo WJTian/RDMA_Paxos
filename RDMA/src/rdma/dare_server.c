@@ -58,7 +58,7 @@ int dare_server_init(dare_server_input_t *input)
     if (input->hb_on == 1)
     {
         hb_period = input->hb_period;
-        
+
         pthread_t hb_thread;
         rc = pthread_create(&hb_thread, NULL, hb_begin, NULL);
         if (rc != 0)
@@ -143,6 +143,9 @@ static void init_network_cb()
 shutdown:
     dare_server_shutdown();
 }
+
+/* ================================================================== */
+/* HB mechanism */
 
 static void *hb_begin(void *arg)
 {
@@ -236,6 +239,9 @@ static double random_election_timeout()
     uint64_t timeout = (lrand48() % (elec_timeout_high-elec_timeout_low)) + elec_timeout_low;
     return (double)timeout * 1e-6;
 }
+
+/* ================================================================== */
+/* Leader election */
 
 static void start_election()
 {

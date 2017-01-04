@@ -259,3 +259,18 @@ int find_max_inline(struct ibv_context *context, struct ibv_pd *pd, uint32_t *ma
 
     return rc;
 }
+
+int dare_ib_send_hb()
+{
+    return rc_send_hb();
+}
+
+int  dare_ib_send_vote_request()
+{
+    return rc_send_vote_request();
+}
+
+int dare_ib_send_vote_ack()
+{
+    return rc_send_vote_ack();
+}

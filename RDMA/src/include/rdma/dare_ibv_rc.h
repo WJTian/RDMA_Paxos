@@ -16,4 +16,10 @@ int post_send(uint32_t server_id, void *buf, uint32_t len, struct ibv_mr *mr, en
 /* QP interface */
 int rc_connect_server(uint8_t idx, uint16_t dlid, uint8_t *dgid);
 
+int rc_send_hb();
+
+/* Leader election */
+int rc_send_vote_request();
+int rc_send_vote_ack();
+
 #endif /* DARE_IBV_RC_H */

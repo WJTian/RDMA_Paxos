@@ -29,6 +29,9 @@ typedef struct node_t{
 	FILE* sys_log_file;
 	int zoo_port;
 
+	int hb_on;
+	double hb_period;
+	
 	pthread_t rep_thread;
 }node;
 

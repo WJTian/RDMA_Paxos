@@ -14,7 +14,9 @@ int launch_rdma(node* my_node)
         .group_size = my_node->group_size,
         .server_idx = my_node->node_id,
         .cur_view = &my_node->cur_view,
-        .my_address = &my_node->my_address
+        .my_address = &my_node->my_address,
+        .hb_on = &my_node->hb_on,
+        .hb_period = &my_node->hb_period
     };
 
     if (0 != dare_server_init(&input)) {

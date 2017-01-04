@@ -55,9 +55,9 @@ int dare_server_init(dare_server_input_t *input)
 
     init_network_cb();
 
-    if (input->hb_on == 1)
+    if (data.input->hb_on == 1)
     {
-        hb_period = input->hb_period;
+        hb_period = data.input->hb_period;
 
         pthread_t hb_thread;
         rc = pthread_create(&hb_thread, NULL, hb_begin, NULL);

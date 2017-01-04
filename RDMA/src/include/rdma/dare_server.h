@@ -16,6 +16,8 @@ struct dare_server_input_t {
     uint32_t *server_idx;
     view *cur_view;
     struct sockaddr_in *my_address;
+    int hb_on;
+    double hb_period;
 };
 typedef struct dare_server_input_t dare_server_input_t;
 

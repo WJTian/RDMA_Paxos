@@ -6,6 +6,13 @@
 #include "../util/common-structure.h"
 #include "../consensus/consensus-msg.h"
 
+struct vote_req_t {
+    uint64_t sid;
+    uint64_t index;
+    uint64_t term;
+};
+typedef struct vote_req_t vote_req_t;
+
 struct dare_log_entry_t{
     accept_ack ack[MAX_SERVER_COUNT];
     view_stamp msg_vs;
@@ -17,6 +24,17 @@ struct dare_log_entry_t{
     char data[0];
 }; // 168bytes
 typedef struct dare_log_entry_t dare_log_entry_t;
+
+struct ctrl_data_t {
+    /* State identified (SID) */
+    uint64_t    sid;
+    
+    /* DARE arrays */
+    vote_req_t    vote_req[MAX_SERVER_COUNT];       /* vote requests */
+    uint64_t      hb[MAX_SERVER_COUNT];             /* heartbeat array */ 
+    uint64_t      vote_ack[MAX_SERVER_COUNT];
+};
+typedef struct ctrl_data_t ctrl_data_t;
 
 #define LOG_SIZE  16384*4*PAGE_SIZE
 
@@ -32,7 +50,8 @@ struct dare_log_t
                     Note: tail + sizeof(last_entry) == end */
     
     uint64_t len;
-    
+
+    ctrl_data_t ctrl_data;    
     uint8_t entries[0];
 }; 
 typedef struct dare_log_t dare_log_t;

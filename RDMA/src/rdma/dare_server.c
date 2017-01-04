@@ -1,6 +1,8 @@
 #include "../include/rdma/dare_ibv.h"
 #include "../include/rdma/dare_server.h"
 
+#include <ev.h>
+
 FILE *log_fp;
 
 /* server data */

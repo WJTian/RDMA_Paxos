@@ -33,12 +33,12 @@ int rc_send_hb()
     size = SRV_DATA->config.cid.size;
     
     /* Set offset accordingly */
-    uint32_t offset = (uint32_t) (offsetof(dare_log_t, ctrl_data) + offsetof(ctrl_data_t, hb) + sizeof(uint64_t) * SRV_DATA->config.idx);
+    uint32_t offset = (uint32_t) (offsetof(dare_log_t, ctrl_data) + offsetof(ctrl_data_t, hb) + sizeof(uint64_t) * (*SRV_DATA->config.idx));
     
     /* Issue RDMA Write operations */
 
     for (i = 0; i < size; i++) {
-        if (i == SRV_DATA->config.idx) continue;
+        if (i == (*SRV_DATA->config.idx)) continue;
 
         ep = (dare_ib_ep_t*)SRV_DATA->config.servers[i].ep;
         
@@ -61,7 +61,7 @@ int rc_send_vote_request()
 {
     int rc;
     uint8_t i, size = SRV_DATA->config.cid.size;
-    uint8_t idx = SRV_DATA->config.idx;
+    uint8_t idx = *SRV_DATA->config.idx;
     dare_ib_ep_t *ep;
     rem_mem_t rm;
     
@@ -98,7 +98,7 @@ int rc_send_vote_ack()
     dare_ib_ep_t *ep;
     rem_mem_t rm;
     uint8_t candidate = SID_GET_IDX(SRV_DATA->log->ctrl_data.sid);
-    uint8_t idx = SRV_DATA->config.idx;
+    uint8_t idx = *SRV_DATA->config.idx;
 
     ep = (dare_ib_ep_t*)SRV_DATA->config.servers[candidate].ep;          
        

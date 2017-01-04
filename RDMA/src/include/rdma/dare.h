@@ -4,7 +4,7 @@
 #define DARE_H_
 
 #define MAX_SERVER_COUNT 7
-
+#define NOW 0.000000001
 #define PAGE_SIZE 4096
 
 /**
